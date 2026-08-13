@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createServer, type Server } from 'node:http'
+import { execFileSync } from 'node:child_process'
 import type { Config } from '../src/types.js'
 
 const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'dummy-server.mjs')
@@ -47,7 +48,11 @@ describe('supervisor', () => {
     sup = new Supervisor(cfg(45825, 45826), { logDir: mkdtempSync(join(tmpdir(), 'orca-sv-')) })
     await sup.start('dummy-a')
     const pid = sup.pids().get('dummy-a')!
-    process.kill(pid)
+    // process.kill(pid)만 쓰면 cmd.exe 래퍼만 죽고 실제 dummy-server(node.exe) 손자
+    // 프로세스는 포트를 계속 리슨한 채 고아로 남는다. 트리째 죽여 외부 강제종료를
+    // 시뮬레이션하면서도(수퍼바이저 입장에선 여전히 "자신이 죽이지 않은 exit") 다음
+    // 테스트 실행이 45825 포트 점유로 실패하지 않도록 한다.
+    execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'])
     await new Promise(r => setTimeout(r, 1500))
     expect(sup.states()[0].status).toBe('CRASHED')
 
