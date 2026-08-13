@@ -31,6 +31,20 @@ describe('stats', () => {
     c.stop()
   }, 15000)
 
+  it('stop 직후 재시작하면 이전 헬퍼의 지연된 exit 이벤트가 새 헬퍼 참조를 지우지 않는다', async () => {
+    const c = new StatsCollector()
+    c.start()
+    const m0 = await c.sample([process.pid])
+    expect(m0.get(process.pid)!.rssBytes).toBeGreaterThan(0)
+    c.stop()
+    c.start()
+    await sleep(800) // 이전 헬퍼(A)의 exit 이벤트가 전파될 시간을 준다
+    expect(c.helperPid()).toBeDefined()
+    const m1 = await c.sample([process.pid])
+    expect(m1.get(process.pid)!.rssBytes).toBeGreaterThan(0)
+    c.stop()
+  }, 20000)
+
   it('sampleSystem: 두 번째 호출부터 0~100 사이 CPU%', async () => {
     sampleSystem()
     await sleep(300)

@@ -16,10 +16,11 @@ export class StatsCollector {
 
   start(): void {
     if (this.child) return
-    this.child = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', HELPER],
+    const child = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', HELPER],
       { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] })
-    this.rl = createInterface({ input: this.child.stdout! })
-    this.child.once('exit', () => { this.child = undefined })
+    this.child = child
+    this.rl = createInterface({ input: child.stdout! })
+    child.once('exit', () => { if (this.child === child) this.child = undefined })
   }
 
   stop(): void {
@@ -36,8 +37,9 @@ export class StatsCollector {
     const list = pids.filter((p): p is number => p !== undefined)
     if (!this.child || !this.rl || list.length === 0) return out
     const reply = new Promise<string | null>((resolve) => {
-      const t = setTimeout(() => resolve(null), REPLY_TIMEOUT)
-      this.rl!.once('line', l => { clearTimeout(t); resolve(l) })
+      const onLine = (l: string) => { clearTimeout(t); resolve(l) }
+      const t = setTimeout(() => { this.rl?.off('line', onLine); resolve(null) }, REPLY_TIMEOUT)
+      this.rl!.once('line', onLine)
     })
     this.child.stdin!.write(list.join(',') + '\n')
     const raw = await reply
