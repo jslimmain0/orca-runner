@@ -28,6 +28,8 @@ orca <그룹>          # 그룹만
 - command 서비스: 임의 명령 + 낮은 우선순위 (+ 선택적 CPU affinity)
 - 로그: `~\.orca\logs\<이름>.log` (10MB 롤링)
 - 자원 수집: 장수명 PowerShell 헬퍼 1개에 3초마다 일괄 요청. `m`으로 완전히 끌 수 있음.
+- command 서비스의 MEM/CPU 표시는 cmd 래퍼 프로세스 기준이라 실제 작업 프로세스보다 작게 보일 수 있다 (spring 서비스는 정확).
+- command 서비스의 cpus(affinity)는 명시적으로 설정한 경우에만 적용되며, 현재는 래퍼 프로세스에 적용된다.
 
 ## 자원 예산
 
