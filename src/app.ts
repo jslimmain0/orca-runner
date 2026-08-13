@@ -56,7 +56,10 @@ export async function runApp(cfg: Config): Promise<void> {
     draw()
   }, 3000)
 
+  let quitting = false
   const quit = async () => {
+    if (quitting) return
+    quitting = true
     clearInterval(tick)
     stats.stop()
     screen.exit()
