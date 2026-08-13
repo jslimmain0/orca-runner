@@ -27,7 +27,7 @@ export function findBootJar(dir: string, module?: string): string {
 
 function runGradle(dir: string, args: string[], out?: Writable): Promise<number> {
   return new Promise((resolve, reject) => {
-    const child = spawn('cmd', ['/c', 'gradlew.bat', ...args], { cwd: dir, windowsHide: true })
+    const child = spawn('cmd', ['/c', '.\\gradlew.bat', ...args], { cwd: dir, windowsHide: true })
     if (out) { child.stdout.pipe(out, { end: false }); child.stderr.pipe(out, { end: false }) }
     child.once('error', reject)
     child.once('exit', code => resolve(code ?? 1))
