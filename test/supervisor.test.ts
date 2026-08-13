@@ -50,5 +50,9 @@ describe('supervisor', () => {
     process.kill(pid)
     await new Promise(r => setTimeout(r, 1500))
     expect(sup.states()[0].status).toBe('CRASHED')
+
+    const t0 = Date.now()
+    await sup.stopAll()
+    expect(Date.now() - t0).toBeLessThan(2000)
   }, 15000)
 })

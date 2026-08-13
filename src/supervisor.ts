@@ -51,8 +51,8 @@ export class Supervisor extends EventEmitter {
     if (!e || e.state.status === 'UP' || e.state.status === 'STARTING' || e.state.status === 'BUILDING') return
     const def = e.state.def
     e.stopping = false
-    e.log = new LogWriter(this.logFile(name))
     try {
+      e.log = new LogWriter(this.logFile(name))
       let command: string, args: string[]
       if (def.kind === 'spring') {
         const cache = loadCache()
@@ -70,6 +70,7 @@ export class Supervisor extends EventEmitter {
 
       const holder = await whoHoldsPort(def.port)
       if (holder) {
+        e.log?.close()
         this.set(e, { status: 'ERROR', error: `포트 ${def.port} 점유 중: ${holder.exe} (PID ${holder.pid})` })
         return
       }
@@ -85,13 +86,13 @@ export class Supervisor extends EventEmitter {
       child.once('exit', () => {
         recordStop(name)
         e.log?.close()
-        this.set(e, e.stopping ? { status: 'DOWN', pid: undefined } : { status: 'CRASHED' })
+        this.set(e, e.stopping ? { status: 'DOWN', pid: undefined } : { status: 'CRASHED', pid: undefined })
       })
 
       const deadline = Date.now() + HEALTH_TIMEOUT
       while (Date.now() < deadline && e.state.status === 'STARTING') {
         const up = def.health ? await httpUp(def.health) : await portListening(def.port)
-        if (up) { this.set(e, { status: 'UP' }); return }
+        if (up && e.state.status === 'STARTING') { this.set(e, { status: 'UP' }); return }
         await new Promise(r => setTimeout(r, HEALTH_INTERVAL))
       }
       if (e.state.status === 'STARTING') {
