@@ -32,7 +32,9 @@ export function buildExclusionScript(paths: string[]): string {
 
 export function elevationCommand(scriptPath: string): string {
   const escaped = scriptPath.replace(/'/g, "''")
-  return `Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','${escaped}'`
+  // PS 5.1 Start-Process -ArgumentList는 배열 원소를 공백으로 이어붙일 뿐 따옴표를 씌우지 않는다 —
+  // 경로에 공백이 있으면 -File 인자가 쪼개지므로 요소 자체에 큰따옴표를 포함시킨다.
+  return `Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','"${escaped}"'`
 }
 
 export async function runSetup(): Promise<void> {
@@ -70,6 +72,7 @@ export async function runSetup(): Promise<void> {
       console.log(`${cmd[0]}: ${(stdout + stderr).split(/\r?\n/)[0]}`)
     } catch { console.log(`${cmd[0]}: 찾을 수 없음 — PATH 확인 필요`) }
   }
+  console.log(`JAVA_HOME: ${process.env.JAVA_HOME ?? '미설정'}`)
 
   for (const dir of springDirs) {
     const gp = join(dir, 'gradle.properties')

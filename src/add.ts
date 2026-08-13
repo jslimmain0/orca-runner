@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { createInterface } from 'node:readline/promises'
 import { parseDocument } from 'yaml'
-import { CONFIG_PATH, ORCA_HOME, loadConfigFromString, ConfigError } from './config.js'
+import { CONFIG_PATH, ORCA_HOME, loadConfigFromString } from './config.js'
 
 export interface NewService {
   name: string; group?: string; kind: 'spring' | 'command'
@@ -50,6 +50,7 @@ export async function runAdd(): Promise<void> {
     writeFileSync(CONFIG_PATH, out)
     console.log(`등록 완료: ${name} → ${CONFIG_PATH}`)
   } catch (e) {
-    if (e instanceof ConfigError || e instanceof Error) console.error(`등록 실패: ${e.message}`)
+    console.error(`등록 실패: ${e instanceof Error ? e.message : String(e)}`)
+    process.exitCode = 1
   } finally { rl.close() }
 }

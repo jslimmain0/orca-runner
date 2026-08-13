@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Writable } from 'node:stream'
@@ -25,19 +25,20 @@ export function findBootJar(dir: string, module?: string): string {
   return join(libs, jars[0])
 }
 
-function runGradle(dir: string, args: string[], out?: Writable): Promise<number> {
+function runGradle(dir: string, args: string[], out?: Writable, onSpawn?: (child: ChildProcess) => void): Promise<number> {
   return new Promise((resolve, reject) => {
     const child = spawn('cmd', ['/c', '.\\gradlew.bat', ...args], { cwd: dir, windowsHide: true })
+    onSpawn?.(child)
     if (out) { child.stdout.pipe(out, { end: false }); child.stderr.pipe(out, { end: false }) }
     child.once('error', reject)
     child.once('exit', code => resolve(code ?? 1))
   })
 }
 
-export async function buildJar(def: ServiceDef, out: Writable): Promise<string> {
+export async function buildJar(def: ServiceDef, out: Writable, onSpawn?: (child: ChildProcess) => void): Promise<string> {
   if (def.module && !/^[A-Za-z0-9._-]+$/.test(def.module)) throw new Error(`잘못된 module 이름: ${def.module}`)
   const target = def.module ? `:${def.module}:bootJar` : 'bootJar'
-  const code = await runGradle(def.dir, [target, '-x', 'test'], out)
+  const code = await runGradle(def.dir, [target, '-x', 'test'], out, onSpawn)
   if (code !== 0) throw new Error(`빌드 실패: ${def.name} — 로그를 확인하세요`)
   return findBootJar(def.dir, def.module)
 }

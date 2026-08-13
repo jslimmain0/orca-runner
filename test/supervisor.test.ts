@@ -1,11 +1,12 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { Supervisor } from '../src/supervisor.js'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createServer, type Server } from 'node:http'
 import { execFileSync } from 'node:child_process'
+import { isAlive } from '../src/procctl.js'
 import type { Config } from '../src/types.js'
 
 const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'dummy-server.mjs')
@@ -60,4 +61,80 @@ describe('supervisor', () => {
     await sup.stopAll()
     expect(Date.now() - t0).toBeLessThan(2000)
   }, 15000)
+
+  it('헬스체크 타임아웃 시 ERROR로 전환하고 좀비 프로세스를 정리한다 (재시도 안전)', async () => {
+    const cfg: Config = {
+      services: [
+        {
+          name: 'never-up', kind: 'command', dir: process.cwd(),
+          run: 'node -e "setInterval(()=>{},1000)"', port: 45827,
+          heapMb: 0, cpus: 0, priority: 'normal', jvmArgs: [],
+        },
+      ],
+    }
+    sup = new Supervisor(cfg, { logDir: mkdtempSync(join(tmpdir(), 'orca-sv-')), healthTimeoutMs: 3000 })
+    const startP = sup.start('never-up')
+
+    // STARTING 상태에서 pid를 확보 (좀비가 실제로 죽었는지 나중에 확인하기 위해)
+    let pid: number | undefined
+    const d1 = Date.now() + 5000
+    while (Date.now() < d1 && pid === undefined) {
+      pid = sup.pids().get('never-up')
+      if (pid === undefined) await new Promise(r => setTimeout(r, 50))
+    }
+    expect(pid).toBeDefined()
+
+    await startP
+    expect(sup.states()[0].status).toBe('ERROR')
+
+    // exit 핸들러가 비동기로 pid를 지우므로 짧게 폴링
+    const d2 = Date.now() + 3000
+    while (Date.now() < d2 && sup.states()[0].pid !== undefined) {
+      await new Promise(r => setTimeout(r, 50))
+    }
+    expect(sup.states()[0].pid).toBeUndefined()
+    expect(isAlive(pid!)).toBe(false)   // 헬스체크 타임아웃 후 자식 프로세스가 좀비로 남지 않았다
+
+    // 재시도: 이전 자식의 지연된 exit 이벤트가 새 spawn을 덮어쓰지 않아야 한다
+    const retryP = sup.start('never-up')
+    let pid2: number | undefined
+    const d3 = Date.now() + 3000
+    while (Date.now() < d3 && pid2 === undefined) {
+      pid2 = sup.pids().get('never-up')
+      if (pid2 === undefined) await new Promise(r => setTimeout(r, 50))
+    }
+    expect(pid2).toBeDefined()
+    expect(pid2).not.toBe(pid)
+    await sup.stop('never-up')
+    await retryP
+  }, 20000)
+
+  it('BUILDING 중 stop()이 gradle 빌드 트리를 정리한다 (30초 안 기다림)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'orca-sv-build-'))
+    writeFileSync(join(dir, 'gradlew.bat'), '@echo off\r\ntimeout /t 30 /nobreak >nul\r\nexit /b 0\r\n')
+    const cfg: Config = {
+      services: [
+        { name: 'slow-build', kind: 'spring', dir, port: 45828, heapMb: 512, cpus: 2, priority: 'belowNormal', jvmArgs: [] },
+      ],
+    }
+    sup = new Supervisor(cfg, { logDir: mkdtempSync(join(tmpdir(), 'orca-sv-')) })
+    const startP = sup.start('slow-build')
+
+    const d1 = Date.now() + 5000
+    while (Date.now() < d1 && sup.states()[0].status !== 'BUILDING') {
+      await new Promise(r => setTimeout(r, 50))
+    }
+    expect(sup.states()[0].status).toBe('BUILDING')
+
+    const t0 = Date.now()
+    await sup.stop('slow-build')
+    const d2 = Date.now() + 5000
+    while (Date.now() < d2 && sup.states()[0].status !== 'DOWN') {
+      await new Promise(r => setTimeout(r, 50))
+    }
+    expect(sup.states()[0].status).toBe('DOWN')
+    expect(Date.now() - t0).toBeLessThan(10000)   // 30초 gradlew 타임아웃이 아니라 즉시 정리됐는지 확인
+
+    await startP   // start()의 내부 catch 흐름이 끝나길 대기 (미처리 rejection 방지)
+  }, 20000)
 })

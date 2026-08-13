@@ -31,6 +31,14 @@ describe('config', () => {
     expect(eis.priority).toBe('belowNormal')
   })
 
+  it('command 서비스는 cpus 기본값이 0, spring 서비스는 2 (affinity는 opt-in)', () => {
+    const cfg = loadConfigFromString(VALID)
+    const gw = cfg.services.find(s => s.name === 'gateway')!
+    const eis = cfg.services.find(s => s.name === 'eis-server')!
+    expect(gw.cpus).toBe(0)
+    expect(eis.cpus).toBe(2)
+  })
+
   it('command 서비스에 run이 없으면 줄 번호와 함께 에러', () => {
     const bad = `services:\n  gw:\n    kind: command\n    dir: C:\\x\n    port: 9000\n`
     expect(() => loadConfigFromString(bad, 'C:\\cfg.yaml')).toThrowError(ConfigError)

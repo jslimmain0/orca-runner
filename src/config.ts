@@ -60,7 +60,8 @@ export function loadConfigFromString(src: string, path = '(inline)'): Config {
     if (s.priority !== undefined && !PRIORITIES.includes(s.priority as Priority)) {
       fail(at, `${name}: priority는 normal|belowNormal|idle 중 하나여야 합니다`)
     }
-    const base = s.kind === 'spring' ? springDefaults : { ...BUILTIN, heapMb: 0 }
+    // command 서비스는 cpus 기본값이 0 — affinity는 명시적으로 설정한 경우에만 적용 (opt-in)
+    const base = s.kind === 'spring' ? springDefaults : { heapMb: 0, cpus: 0, priority: BUILTIN.priority }
     services.push({
       name,
       group: s.group as string | undefined,

@@ -15,6 +15,7 @@ const HEALTH_TIMEOUT = 120_000
 interface Entry {
   state: ServiceState
   child?: ChildProcess
+  buildChild?: ChildProcess
   log?: LogWriter
   stopping: boolean
 }
@@ -22,10 +23,12 @@ interface Entry {
 export class Supervisor extends EventEmitter {
   private entries = new Map<string, Entry>()
   private logDir?: string
+  private healthTimeoutMs: number
 
-  constructor(cfg: Config, opts?: { logDir?: string }) {
+  constructor(cfg: Config, opts?: { logDir?: string; healthTimeoutMs?: number }) {
     super()
     this.logDir = opts?.logDir
+    this.healthTimeoutMs = opts?.healthTimeoutMs ?? HEALTH_TIMEOUT
     for (const def of cfg.services) {
       this.entries.set(def.name, { state: { def, status: 'DOWN' }, stopping: false })
     }
@@ -58,9 +61,14 @@ export class Supervisor extends EventEmitter {
         const cache = loadCache()
         if (needsRebuild(def.dir, cache[name])) {
           this.set(e, { status: 'BUILDING', error: undefined })
-          const jar = await buildJar(def, e.log.stream())
-          cache[name] = { builtAt: Date.now(), jar }
-          saveCache(cache)
+          try {
+            const jar = await buildJar(def, e.log.stream(), child => { e.buildChild = child })
+            cache[name] = { builtAt: Date.now(), jar }
+            saveCache(cache)
+          } finally {
+            e.buildChild = undefined
+          }
+          await gradleStop(def.dir)   // 단일 서비스 시작만으로도 데몬을 남기지 않는다
         }
         const jar = cache[name]?.jar ?? findBootJar(def.dir, def.module)
         command = 'java'; args = javaArgs(def, jar)
@@ -84,8 +92,11 @@ export class Supervisor extends EventEmitter {
       this.set(e, { status: 'STARTING', pid, error: undefined })
 
       child.once('exit', () => {
+        if (e.child !== child) return   // 이미 새 spawn으로 교체됨 — 이 리스너는 과거 자식의 것
         recordStop(name)
         e.log?.close()
+        e.child = undefined
+        if (e.state.status === 'ERROR') { this.set(e, { pid: undefined }); return }
         this.set(e, e.stopping ? { status: 'DOWN', pid: undefined } : { status: 'CRASHED', pid: undefined })
       })
 
@@ -93,24 +104,32 @@ export class Supervisor extends EventEmitter {
       // e.state.status를 비동기적으로 바꾸는 것을 컴파일러는 추적할 수 없다.
       const cur = (): ServiceStatus => e.state.status
 
-      const deadline = Date.now() + HEALTH_TIMEOUT
+      const deadline = Date.now() + this.healthTimeoutMs
       while (Date.now() < deadline && cur() === 'STARTING') {
         const up = def.health ? await httpUp(def.health) : await portListening(def.port)
         if (up && cur() === 'STARTING') { this.set(e, { status: 'UP' }); return }
         await new Promise(r => setTimeout(r, HEALTH_INTERVAL))
       }
       if (cur() === 'STARTING') {
-        this.set(e, { status: 'ERROR', error: `${HEALTH_TIMEOUT / 1000}초 내에 헬스체크를 통과하지 못했습니다` })
+        this.set(e, { status: 'ERROR', error: `${this.healthTimeoutMs / 1000}초 내에 헬스체크를 통과하지 못했습니다` })
+        if (e.state.pid) await killTree(e.state.pid)   // 좀비 방지 — exit 핸들러가 pid만 정리 (ERROR 유지)
       }
     } catch (err) {
       e.log?.close()
+      if (e.stopping) { this.set(e, { status: 'DOWN', pid: undefined }); return }
       this.set(e, { status: 'ERROR', error: (err as Error).message })
     }
   }
 
   async stop(name: string): Promise<void> {
     const e = this.entries.get(name)
-    if (!e || !e.state.pid || e.state.status === 'DOWN') return
+    if (!e) return
+    if (e.state.status === 'BUILDING' && e.buildChild?.pid) {
+      e.stopping = true
+      await killTree(e.buildChild.pid)
+      return
+    }
+    if (!e.state.pid || e.state.status === 'DOWN') return
     e.stopping = true
     await killTree(e.state.pid)
   }

@@ -41,12 +41,14 @@ describe('elevationCommand', () => {
     expect(cmd).toContain('Start-Process powershell -Verb RunAs')
     expect(cmd).toContain('-ArgumentList')
   })
-  it('스크립트 경로를 -File 인자로 포함한다', () => {
+  it('스크립트 경로를 -File 인자로 포함하며 공백 대응을 위해 큰따옴표로 감싼다', () => {
+    // PS 5.1 Start-Process -ArgumentList는 배열 원소를 공백으로 이어붙일 뿐 따옴표를
+    // 씌우지 않으므로, temp 경로에 공백이 있으면 요소 자체에 큰따옴표가 있어야 한다.
     const cmd = elevationCommand('C:\\Temp Dir\\x.ps1')
-    expect(cmd).toContain("'-File','C:\\Temp Dir\\x.ps1'")
+    expect(cmd).toContain('\'-File\',\'"C:\\Temp Dir\\x.ps1"\'')
   })
   it('경로의 따옴표를 두 배로 이스케이프한다', () => {
     const cmd = elevationCommand("C:\\path'with'quotes\\x.ps1")
-    expect(cmd).toContain("'C:\\path''with''quotes\\x.ps1'")
+    expect(cmd).toContain('\'"C:\\path\'\'with\'\'quotes\\x.ps1"\'')
   })
 })
