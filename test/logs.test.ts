@@ -28,4 +28,31 @@ describe('logs', () => {
   it('없는 파일 tail은 빈 배열', () => {
     expect(tailLines(join(dir(), 'none.log'), 5)).toEqual([])
   })
+
+  it('256KB 이상 파일에서 멀티바이트 UTF-8 경계 처리', () => {
+    const file = join(dir(), 'large.log')
+    // Create file > 256KB with Korean text lines
+    const lines: string[] = []
+    for (let i = 0; i < 3000; i++) {
+      lines.push(`한글로그라인-${i}`.padEnd(100, ' '))
+    }
+    writeFileSync(file, lines.join('\n') + '\n')
+
+    // Verify file is large enough
+    const fileSize = statSync(file).size
+    expect(fileSize).toBeGreaterThan(256 * 1024)
+
+    // Read last 5 lines
+    const result = tailLines(file, 5)
+    expect(result).toHaveLength(5)
+
+    // Verify expected content in last 5 lines
+    expect(result[0].startsWith('한글로그라인-2995')).toBe(true)
+    expect(result[4].startsWith('한글로그라인-2999')).toBe(true)
+
+    // Verify no corruption (no U+FFFD replacement chars)
+    result.forEach((line) => {
+      expect(line).not.toContain('�')
+    })
+  })
 })

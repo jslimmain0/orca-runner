@@ -37,7 +37,9 @@ export function tailLines(file: string, n: number): string[] {
     const len = Math.min(size, TAIL_READ)
     const buf = Buffer.alloc(len)
     readSync(fd, buf, 0, len, size - len)
-    const lines = buf.toString('utf8').split(/\r?\n/).filter(l => l.length > 0)
-    return lines.slice(-n)
+    const truncated = len < size
+    let lines = buf.toString('utf8').split(/\r?\n/)
+    if (truncated) lines = lines.slice(1)
+    return lines.filter(l => l.length > 0).slice(-n)
   } finally { closeSync(fd) }
 }
