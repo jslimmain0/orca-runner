@@ -16,32 +16,42 @@ const services = Array.from({ length: 6 }, (_, i) => ({
 }))
 
 const sup = new Supervisor({ services }, { logDir: mkdtempSync(join(tmpdir(), 'orca-budget-')) })
-await sup.startAll()
-if (sup.states().some(s => s.status !== 'UP')) {
-  console.error('더미 서비스 기동 실패:', sup.states().map(s => `${s.def.name}=${s.status}`).join(' '))
+const stats = new StatsCollector()
+let ok = false
+let timer
+
+try {
+  await sup.startAll()
+  if (sup.states().some(s => s.status !== 'UP')) {
+    console.error('더미 서비스 기동 실패:', sup.states().map(s => `${s.def.name}=${s.status}`).join(' '))
+    process.exitCode = 1
+  } else {
+    stats.start()
+    const DURATION = 30000
+    const t0 = process.cpuUsage()
+    timer = setInterval(() => {
+      stats.sample([...sup.pids().values(), stats.helperPid()]).catch(() => {})
+    }, 3000)
+    await new Promise(r => setTimeout(r, DURATION))
+    clearInterval(timer)
+    timer = undefined
+
+    const cpu = process.cpuUsage(t0)
+    const cpuPct = ((cpu.user + cpu.system) / 1000 / DURATION) * 100
+    const selfRss = process.memoryUsage().rss
+    const helperMap = await stats.sample([stats.helperPid()])
+    const helperRss = helperMap.get(stats.helperPid())?.rssBytes ?? 0
+
+    const totalMb = (selfRss + helperRss) / 1048576
+    console.log(`러너 CPU 평균: ${cpuPct.toFixed(2)}%  (예산 1%)`)
+    console.log(`러너 RAM 합계: ${totalMb.toFixed(0)}MB — 자체 ${(selfRss / 1048576).toFixed(0)}MB + PS헬퍼 ${(helperRss / 1048576).toFixed(0)}MB  (예산 150MB)`)
+    ok = cpuPct <= 1 && totalMb <= 150
+    console.log(ok ? '✔ 예산 통과' : '✘ 예산 초과')
+  }
+} finally {
+  if (timer) clearInterval(timer)
+  stats.stop()
   await sup.stopAll()
-  process.exit(1)
 }
 
-const stats = new StatsCollector()
-stats.start()
-const DURATION = 30000
-const t0 = process.cpuUsage()
-const timer = setInterval(() => { void stats.sample([...sup.pids().values(), stats.helperPid()]) }, 3000)
-await new Promise(r => setTimeout(r, DURATION))
-clearInterval(timer)
-
-const cpu = process.cpuUsage(t0)
-const cpuPct = ((cpu.user + cpu.system) / 1000 / DURATION) * 100
-const selfRss = process.memoryUsage().rss
-const helperMap = await stats.sample([stats.helperPid()])
-const helperRss = helperMap.get(stats.helperPid())?.rssBytes ?? 0
-stats.stop()
-await sup.stopAll()
-
-const totalMb = (selfRss + helperRss) / 1048576
-console.log(`러너 CPU 평균: ${cpuPct.toFixed(2)}%  (예산 1%)`)
-console.log(`러너 RAM 합계: ${totalMb.toFixed(0)}MB — 자체 ${(selfRss / 1048576).toFixed(0)}MB + PS헬퍼 ${(helperRss / 1048576).toFixed(0)}MB  (예산 150MB)`)
-const ok = cpuPct <= 1 && totalMb <= 150
-console.log(ok ? '✔ 예산 통과' : '✘ 예산 초과')
-process.exit(ok ? 0 : 1)
+process.exit(ok ? 0 : (process.exitCode ?? 1))
