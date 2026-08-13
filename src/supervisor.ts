@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { join } from 'node:path'
 import type { ChildProcess } from 'node:child_process'
-import type { Config, ServiceDef, ServiceState } from './types.js'
+import type { Config, ServiceDef, ServiceState, ServiceStatus } from './types.js'
 import { whoHoldsPort } from './ports.js'
 import { loadCache, saveCache, needsRebuild } from './buildCache.js'
 import { spawnService, killTree, recordStart, recordStop } from './procctl.js'
@@ -89,13 +89,17 @@ export class Supervisor extends EventEmitter {
         this.set(e, e.stopping ? { status: 'DOWN', pid: undefined } : { status: 'CRASHED', pid: undefined })
       })
 
+      // 함수 호출 경계로 TS의 상태 좁히기(narrowing)를 우회 — this.set()이 Object.assign으로
+      // e.state.status를 비동기적으로 바꾸는 것을 컴파일러는 추적할 수 없다.
+      const cur = (): ServiceStatus => e.state.status
+
       const deadline = Date.now() + HEALTH_TIMEOUT
-      while (Date.now() < deadline && e.state.status === 'STARTING') {
+      while (Date.now() < deadline && cur() === 'STARTING') {
         const up = def.health ? await httpUp(def.health) : await portListening(def.port)
-        if (up && e.state.status === 'STARTING') { this.set(e, { status: 'UP' }); return }
+        if (up && cur() === 'STARTING') { this.set(e, { status: 'UP' }); return }
         await new Promise(r => setTimeout(r, HEALTH_INTERVAL))
       }
-      if (e.state.status === 'STARTING') {
+      if (cur() === 'STARTING') {
         this.set(e, { status: 'ERROR', error: `${HEALTH_TIMEOUT / 1000}초 내에 헬스체크를 통과하지 못했습니다` })
       }
     } catch (err) {
