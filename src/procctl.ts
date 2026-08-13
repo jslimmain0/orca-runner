@@ -20,7 +20,11 @@ export async function spawnService(o: {
   command: string; args: string[]; cwd: string
   priority: Priority; cpus?: number; out: Writable
 }): Promise<{ pid: number; child: ChildProcess }> {
-  const child = spawn(o.command, o.args, { cwd: o.cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+  // cmd.exe로 위임하는 원문 명령줄(예: `cmd /c <run>`)은 Node의 기본 인자 자동-따옴표 처리가
+  // 내장된 큰따옴표를 백슬래시로 이스케이프해 cmd가 이를 리터럴로 오인, 경로를 깨뜨린다.
+  // command가 cmd일 때만 verbatim으로 넘겨 이미 올바르게 인용된 문자열을 그대로 전달한다.
+  const windowsVerbatimArguments = o.command.toLowerCase() === 'cmd'
+  const child = spawn(o.command, o.args, { cwd: o.cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], windowsVerbatimArguments })
   try {
     await new Promise<void>((resolve, reject) => {
       child.once('spawn', resolve)
