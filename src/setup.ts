@@ -1,7 +1,7 @@
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, writeFileSync } from 'node:fs'
 import { execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
-import { homedir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import { loadConfig, ConfigError } from './config.js'
@@ -23,6 +23,16 @@ export function adviseGradleProps(props: string): string[] {
 
 export function exclusionPaths(serviceDirs: string[]): string[] {
   return [...new Set([...serviceDirs, join(homedir(), '.gradle')])]
+}
+
+export function buildExclusionScript(paths: string[]): string {
+  const lines = paths.map(p => `Add-MpPreference -ExclusionPath '${p.replace(/'/g, "''")}'`)
+  return lines.join('\r\n') + '\r\nWrite-Host "Defender 예외 등록 완료. 이 창은 곧 닫힙니다."\r\nStart-Sleep -Seconds 5\r\n'
+}
+
+export function elevationCommand(scriptPath: string): string {
+  const escaped = scriptPath.replace(/'/g, "''")
+  return `Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','${escaped}'`
 }
 
 export async function runSetup(): Promise<void> {
@@ -47,11 +57,10 @@ export async function runSetup(): Promise<void> {
   const ans = (await rl.question('등록할까요? 관리자 권한 창이 뜹니다 [y/N] ')).trim().toLowerCase()
   rl.close()
   if (ans === 'y') {
-    const list = paths.map(p => `'${p}'`).join(',')
-    // UAC 승격 1회로 전체 등록
-    spawn('powershell', ['-NoProfile', '-Command',
-      `Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -Command Add-MpPreference -ExclusionPath ${list}'`,
-    ], { windowsHide: true, detached: true, stdio: 'ignore' }).unref()
+    // UAC 승격 1회로 전체 등록 (temp 파일 방식으로 quote nesting 문제 해결)
+    const scriptPath = join(tmpdir(), 'orca-defender-exclusions.ps1')
+    writeFileSync(scriptPath, '﻿' + buildExclusionScript(paths), 'utf8')
+    spawn('powershell', ['-NoProfile', '-Command', elevationCommand(scriptPath)], { windowsHide: true, detached: true, stdio: 'ignore' }).unref()
     console.log('관리자 권한 창에서 등록을 승인해주세요.')
   }
 
