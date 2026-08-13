@@ -9,9 +9,11 @@ export interface NewService {
 }
 
 export function appendService(src: string, s: NewService): string {
+  if (!/^[A-Za-z0-9._-]+$/.test(s.name)) throw new Error(`잘못된 서비스 이름: '${s.name}' (영문/숫자/._- 만 허용)`)
   const doc = parseDocument(src.trim() === '' ? 'services: {}\n' : src)
   if (doc.hasIn(['services', s.name])) throw new Error(`'${s.name}'은(는) 이미 등록돼 있습니다`)
-  if (!doc.hasIn(['services'])) doc.setIn(['services'], doc.createNode({}))
+  const svcNode = doc.get('services', true)
+  if (!svcNode || !('items' in (svcNode as object))) doc.setIn(['services'], doc.createNode({}))
   const entry: Record<string, unknown> = { kind: s.kind, dir: s.dir, port: s.port }
   if (s.group) entry.group = s.group
   if (s.module) entry.module = s.module

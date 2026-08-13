@@ -28,4 +28,24 @@ describe('appendService', () => {
     const out = appendService('', { name: 'bad', kind: 'command', dir: 'C:\\x', port: 1 })
     expect(() => loadConfigFromString(out)).toThrowError()
   })
+
+  it('빈 서비스 이름은 throw', () => {
+    expect(() => appendService('', { name: '', kind: 'spring', dir: 'C:\\x', port: 8081 })).toThrowError(/잘못된 서비스 이름/)
+  })
+
+  it('공백을 포함한 서비스 이름은 throw', () => {
+    expect(() => appendService('', { name: 'bad name', kind: 'spring', dir: 'C:\\x', port: 8081 })).toThrowError(/잘못된 서비스 이름/)
+  })
+
+  it('bare services 키 (값 없음)에 서비스를 추가한다', () => {
+    const out = appendService('services:\n', { name: 'eis', kind: 'spring', dir: 'C:\\eis', port: 8081 })
+    const cfg = loadConfigFromString(out)
+    expect(cfg.services[0].name).toBe('eis')
+  })
+
+  it('services: null에 서비스를 추가한다', () => {
+    const out = appendService('services: null\n', { name: 'eis', kind: 'spring', dir: 'C:\\eis', port: 8081 })
+    const cfg = loadConfigFromString(out)
+    expect(cfg.services[0].name).toBe('eis')
+  })
 })
