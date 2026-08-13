@@ -8,6 +8,7 @@ async function main(): Promise<void> {
   const arg = process.argv[2]
   if (arg === '--version') { console.log(VERSION); return }
   if (arg === 'add') { const { runAdd } = await import('./add.js'); await runAdd(); return }
+  if (arg === 'setup') { const { runSetup } = await import('./setup.js'); await runSetup(); return }
   try {
     const cfg = loadConfig()
     const services = arg ? cfg.services.filter(s => s.group === arg) : cfg.services
