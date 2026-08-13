@@ -38,6 +38,14 @@ describe('procctl', () => {
     expect(isAlive(grandchild)).toBe(false)
   }, 20000)
 
+  it('존재하지 않는 명령이면 프로세스 전체를 죽이지 않고 reject한다', async () => {
+    const out = new PassThrough()
+    await expect(spawnService({
+      command: 'this-command-does-not-exist-xyz', args: [],
+      cwd: process.cwd(), priority: 'normal', out,
+    })).rejects.toThrow('this-command-does-not-exist-xyz')
+  })
+
   it('run.json에 시작/중지를 기록하고 고아를 찾는다', () => {
     const file = join(mkdtempSync(join(tmpdir(), 'orca-run-')), 'run.json')
     recordStart('svc-a', process.pid, file)      // 살아있는 pid

@@ -21,6 +21,16 @@ export async function spawnService(o: {
   priority: Priority; cpus?: number; out: Writable
 }): Promise<{ pid: number; child: ChildProcess }> {
   const child = spawn(o.command, o.args, { cwd: o.cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+  try {
+    await new Promise<void>((resolve, reject) => {
+      child.once('spawn', resolve)
+      child.once('error', reject)
+    })
+  } catch (err) {
+    throw new Error(`프로세스 시작 실패: ${o.command} — ${(err as Error).message}`)
+  }
+  // spawn 성공 이후 발생하는 비동기 'error' 이벤트가 프로세스 전체를 죽이지 않도록 가드
+  child.on('error', () => { /* killTree 등에서 별도로 처리 */ })
   if (child.pid === undefined) throw new Error(`프로세스 시작 실패: ${o.command}`)
   child.stdout!.pipe(o.out, { end: false })
   child.stderr!.pipe(o.out, { end: false })
