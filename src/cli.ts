@@ -7,6 +7,7 @@ export const VERSION = '0.1.0'
 async function main(): Promise<void> {
   const arg = process.argv[2]
   if (arg === '--version') { console.log(VERSION); return }
+  if (arg === 'add') { const { runAdd } = await import('./add.js'); await runAdd(); return }
   try {
     const cfg = loadConfig()
     const services = arg ? cfg.services.filter(s => s.group === arg) : cfg.services
