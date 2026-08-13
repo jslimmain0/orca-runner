@@ -27,7 +27,7 @@ export function findBootJar(dir: string, module?: string): string {
 
 function runGradle(dir: string, args: string[], out?: Writable): Promise<number> {
   return new Promise((resolve, reject) => {
-    const child = spawn(join(dir, 'gradlew.bat'), args, { cwd: dir, windowsHide: true, shell: true })
+    const child = spawn('cmd', ['/c', 'gradlew.bat', ...args], { cwd: dir, windowsHide: true })
     if (out) { child.stdout.pipe(out, { end: false }); child.stderr.pipe(out, { end: false }) }
     child.once('error', reject)
     child.once('exit', code => resolve(code ?? 1))
@@ -35,6 +35,7 @@ function runGradle(dir: string, args: string[], out?: Writable): Promise<number>
 }
 
 export async function buildJar(def: ServiceDef, out: Writable): Promise<string> {
+  if (def.module && !/^[A-Za-z0-9._-]+$/.test(def.module)) throw new Error(`잘못된 module 이름: ${def.module}`)
   const target = def.module ? `:${def.module}:bootJar` : 'bootJar'
   const code = await runGradle(def.dir, [target, '-x', 'test'], out)
   if (code !== 0) throw new Error(`빌드 실패: ${def.name} — 로그를 확인하세요`)
