@@ -57,19 +57,26 @@ export async function runApp(cfg: Config): Promise<void> {
 
   sup.on('change', draw)
 
+  let ticking = false
   const tick = setInterval(async () => {          // 3초 배치 샘플 — 유일한 주기 작업
-    if (statsOn) {
-      const m = await stats.sample([...sup.pids().values()])
-      for (const s of sup.states()) {
-        const st = s.pid ? m.get(s.pid) : undefined
-        s.cpuPercent = st?.cpuPercent
-        s.rssBytes = st?.rssBytes
+    if (ticking) return   // 이전 tick이 아직 안 끝났으면 이번 회차 스킵 — stats.sample()의 once('line')가
+    ticking = true         // 겹친 tick끼리 서로의 응답을 가로채는 레이스를 구조적으로 차단
+    try {
+      if (statsOn) {
+        const m = await stats.sample([...sup.pids().values()])
+        for (const s of sup.states()) {
+          const st = s.pid ? m.get(s.pid) : undefined
+          s.cpuPercent = st?.cpuPercent
+          s.rssBytes = st?.rssBytes
+        }
       }
+      await Promise.all(sup.states().filter(s => s.skipped).map(async s => {
+        s.skipPortUp = await portListening(s.def.port)   // 기존 3초 tick에 편승, 병렬이라 최악 +1s로 상한
+      }))
+      draw()
+    } finally {
+      ticking = false
     }
-    for (const s of sup.states()) {
-      if (s.skipped) s.skipPortUp = await portListening(s.def.port)   // 기존 3초 tick에 편승 (새 타이머 금지)
-    }
-    draw()
   }, 3000)
 
   let quitting = false
