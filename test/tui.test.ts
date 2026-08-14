@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseKey } from '../src/tui/keys.js'
+import { parseKey, parseDigit } from '../src/tui/keys.js'
 import { renderDiff } from '../src/tui/screen.js'
 
 describe('keys', () => {
@@ -11,6 +11,14 @@ describe('keys', () => {
     expect(parseKey(Buffer.from('Q'))).toBe('q')
     expect(parseKey(Buffer.from('\x03'))).toBe('q')
     expect(parseKey(Buffer.from('z'))).toBe('other')
+  })
+
+  it('r 키와 숫자 키를 파싱한다', () => {
+    expect(parseKey(Buffer.from('r'))).toBe('r')
+    expect(parseKey(Buffer.from('R'))).toBe('r')
+    expect(parseDigit(Buffer.from('3'))).toBe(3)
+    expect(parseDigit(Buffer.from('0'))).toBeNull()
+    expect(parseDigit(Buffer.from('a'))).toBeNull()
   })
 })
 

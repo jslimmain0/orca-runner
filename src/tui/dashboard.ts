@@ -56,9 +56,10 @@ export function dashboardLines(states: ServiceState[], sys: SysSample, opts: Das
     const mem = opts.statsOn ? fmtBytes(s.rssBytes).padStart(8) : ''
     const cpu = opts.statsOn && s.cpuPercent !== undefined ? (s.cpuPercent.toFixed(0) + '%').padStart(5) : ''
     const note = s.error ? '  ' + s.error : (s.status === 'BUILDING' ? '  (빌드는 수 분 걸릴 수 있음)' : '')
-    const plain = truncateRow(`${cur}${ICON[s.status] ?? '?'} ${name} :${port} ${status}${mem}${cpu}${note}`, width)
+    const num = i < 9 ? String(i + 1) : ' '
+    const plain = truncateRow(`${cur}${num} ${ICON[s.status] ?? '?'} ${name} :${port} ${status}${mem}${cpu}${note}`, width)
     return colorizeRow(plain, s.status, color)
   })
-  const help = opts.helpOverride ?? ' [↑↓]선택 [s]시작/중지 [a]전체시작 [l]로그 [m]수집 [q]종료'
+  const help = opts.helpOverride ?? ' [↑↓/1-9]선택 [s/Enter]시작/중지 [r]재시작 [a]전체 [l]로그 [m]수집 [q]종료'
   return [head, sep, ...rows, sep, help]
 }

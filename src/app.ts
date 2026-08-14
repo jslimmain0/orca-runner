@@ -3,7 +3,7 @@ import { Supervisor } from './supervisor.js'
 import { StatsCollector } from './stats.js'
 import { sampleSystem } from './sysinfo.js'
 import { Screen } from './tui/screen.js'
-import { parseKey } from './tui/keys.js'
+import { parseKey, parseDigit } from './tui/keys.js'
 import { dashboardLines } from './tui/dashboard.js'
 import { logViewLines, maxOffset } from './tui/logView.js'
 import { logPathFor } from './logs.js'
@@ -104,13 +104,24 @@ export async function runApp(cfg: Config): Promise<void> {
       return
     }
     if (confirmQuit && k !== 'q') { confirmQuit = false; draw(); return }
+    const digit = view === 'dash' ? parseDigit(b) : null
+    if (digit !== null && !confirmQuit) {
+      if (digit <= n) { sel = digit - 1; draw() }
+      return
+    }
+    const toggleSel = () => {
+      const s = sup.states()[sel]
+      if (s.status === 'UP' || s.status === 'STARTING' || s.status === 'BUILDING') void sup.stop(s.def.name)
+      else void sup.start(s.def.name)
+    }
     switch (k) {
       case 'up': sel = (sel + n - 1) % n; break
       case 'down': sel = (sel + 1) % n; break
-      case 's': {
-        const s = sup.states()[sel]
-        if (s.status === 'UP' || s.status === 'STARTING' || s.status === 'BUILDING') void sup.stop(s.def.name)
-        else void sup.start(s.def.name)
+      case 's': toggleSel(); break
+      case 'enter': toggleSel(); break
+      case 'r': {
+        const name = sup.states()[sel].def.name
+        void (async () => { await sup.stop(name); await sup.start(name) })()
         break
       }
       case 'a': void sup.startAll(); break

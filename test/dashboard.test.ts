@@ -89,4 +89,12 @@ describe('dashboard v2', () => {
     expect(lines[3]).toContain('STARTING 119s/120s')
     expect(memIdx(lines[2])).toBe(memIdx(lines[3]))   // 같은 컬럼에서 시작해야 함
   })
+
+  it('행에 표시 번호가 붙는다 (1~9, 이후 공백)', () => {
+    const many = Array.from({ length: 10 }, (_, i) => st({ name: `s${i}`, status: 'DOWN' as const, port: 1000 + i }))
+    const lines = dashboardLines(many, SYS, { sel: 0, statsOn: false, color: false })
+    expect(lines[2]).toMatch(/^>1 /)
+    expect(lines[3]).toMatch(/^ 2 /)
+    expect(lines[11]).toMatch(/^ {2}○|^ {2}/)   // 10번째: 번호 없음
+  })
 })
