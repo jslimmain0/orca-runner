@@ -6,7 +6,7 @@ import { whoHoldsPort } from './ports.js'
 import { loadCache, saveCache, needsRebuild } from './buildCache.js'
 import { spawnService, killTree, recordStart, recordStop } from './procctl.js'
 import { LogWriter, logPathFor } from './logs.js'
-import { httpUp, portListening } from './health.js'
+import { httpProbe, portListening } from './health.js'
 import { buildJar, findBootJar, javaArgs, gradleStop } from './spring.js'
 
 const HEALTH_INTERVAL = 1000
@@ -48,6 +48,10 @@ export class Supervisor extends EventEmitter {
   private logFile(name: string): string {
     return this.logDir ? join(this.logDir, `${name}.log`) : logPathFor(name)
   }
+  /** ERROR/CRASHED 사유를 서비스 로그 마지막 줄에 남긴다 — "빨간 상태 → l" 루프의 연결고리 */
+  private noteToLog(e: Entry, reason: string): void {
+    try { e.log?.stream().write(`[ORCA] ${new Date().toISOString()} ERROR: ${reason}\n`) } catch { /* 스트림 닫힘 */ }
+  }
 
   async start(name: string): Promise<void> {
     const e = this.entries.get(name)
@@ -78,8 +82,10 @@ export class Supervisor extends EventEmitter {
 
       const holder = await whoHoldsPort(def.port)
       if (holder) {
+        const reason = `포트 ${def.port} 점유 중: ${holder.exe} (PID ${holder.pid})`
+        this.noteToLog(e, reason)
         e.log?.close()
-        this.set(e, { status: 'ERROR', error: `포트 ${def.port} 점유 중: ${holder.exe} (PID ${holder.pid})` })
+        this.set(e, { status: 'ERROR', error: reason })
         return
       }
 
@@ -91,30 +97,46 @@ export class Supervisor extends EventEmitter {
       recordStart(name, pid)
       this.set(e, { status: 'STARTING', pid, error: undefined })
 
-      child.once('exit', () => {
+      child.once('exit', (code, signal) => {
         if (e.child !== child) return   // 이미 새 spawn으로 교체됨 — 이 리스너는 과거 자식의 것
         recordStop(name)
-        e.log?.close()
         e.child = undefined
-        if (e.state.status === 'ERROR') { this.set(e, { pid: undefined }); return }
-        this.set(e, e.stopping ? { status: 'DOWN', pid: undefined } : { status: 'CRASHED', pid: undefined })
+        if (e.state.status === 'ERROR') { e.log?.close(); this.set(e, { pid: undefined }); return }
+        const reason = signal ? `시그널 ${signal}로 종료` : `프로세스 종료 (code ${code ?? '?'})`
+        if (!e.stopping) this.noteToLog(e, reason)
+        e.log?.close()
+        this.set(e, e.stopping ? { status: 'DOWN', pid: undefined } : { status: 'CRASHED', pid: undefined, error: reason })
       })
 
       // 함수 호출 경계로 TS의 상태 좁히기(narrowing)를 우회 — this.set()이 Object.assign으로
       // e.state.status를 비동기적으로 바꾸는 것을 컴파일러는 추적할 수 없다.
       const cur = (): ServiceStatus => e.state.status
 
+      let lastDetail = ''
       const deadline = Date.now() + this.healthTimeoutMs
       while (Date.now() < deadline && cur() === 'STARTING') {
-        const up = def.health ? await httpUp(def.health) : await portListening(def.port)
-        if (up && cur() === 'STARTING') { this.set(e, { status: 'UP' }); return }
+        if (def.health) {
+          const p = await httpProbe(def.health)
+          lastDetail = p.detail
+          if (p.ok && cur() === 'STARTING') { this.set(e, { status: 'UP' }); return }
+        } else {
+          const up = await portListening(def.port)
+          lastDetail = up ? '' : `포트 ${def.port} 리슨 없음`
+          if (up && cur() === 'STARTING') { this.set(e, { status: 'UP' }); return }
+        }
         await new Promise(r => setTimeout(r, HEALTH_INTERVAL))
       }
       if (cur() === 'STARTING') {
-        this.set(e, { status: 'ERROR', error: `${this.healthTimeoutMs / 1000}초 내에 헬스체크를 통과하지 못했습니다` })
+        const sec = this.healthTimeoutMs / 1000
+        const reason = def.health
+          ? `${sec}초 내 ${def.health} 확인 실패 (마지막: ${lastDetail}) — l로 로그 확인`
+          : `${sec}초 내 포트 ${def.port} 리슨 확인 실패`
+        this.noteToLog(e, reason)
+        this.set(e, { status: 'ERROR', error: reason })
         if (e.state.pid) await killTree(e.state.pid)   // 좀비 방지 — exit 핸들러가 pid만 정리 (ERROR 유지)
       }
     } catch (err) {
+      this.noteToLog(e, (err as Error).message)
       e.log?.close()
       if (e.stopping) { this.set(e, { status: 'DOWN', pid: undefined }); return }
       this.set(e, { status: 'ERROR', error: (err as Error).message })

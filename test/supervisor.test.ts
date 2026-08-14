@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { Supervisor } from '../src/supervisor.js'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -137,4 +137,29 @@ describe('supervisor', () => {
 
     await startP   // start()의 내부 catch 흐름이 끝나길 대기 (미처리 rejection 방지)
   }, 20000)
+
+  it('포트 점유 ERROR 시 로그 파일에 [ORCA] ERROR 사유가 남는다', async () => {
+    const blocker = createServer(() => {})
+    await new Promise<void>(r => blocker.listen(45833, () => r()))
+    const logDir = mkdtempSync(join(tmpdir(), 'orca-sv-'))
+    sup = new Supervisor(cfg(45833, 45834), { logDir })
+    await sup.start('dummy-a')
+    const log = readFileSync(join(logDir, 'dummy-a.log'), 'utf8')
+    expect(log).toMatch(/\[ORCA\] .+ ERROR: 포트 45833 점유 중/)
+    blocker.close()
+  }, 15000)
+
+  it('CRASHED 시 종료 코드/시그널이 error 필드와 로그에 남는다', async () => {
+    const logDir = mkdtempSync(join(tmpdir(), 'orca-sv-'))
+    sup = new Supervisor(cfg(45835, 45836), { logDir })
+    await sup.start('dummy-a')
+    const pid = sup.pids().get('dummy-a')!
+    execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'])
+    await new Promise(r => setTimeout(r, 1500))
+    const st = sup.states()[0]
+    expect(st.status).toBe('CRASHED')
+    expect(st.error).toMatch(/프로세스 종료|시그널/)
+    const log = readFileSync(join(logDir, 'dummy-a.log'), 'utf8')
+    expect(log).toMatch(/\[ORCA\] .+ ERROR: (프로세스 종료|시그널)/)
+  }, 15000)
 })

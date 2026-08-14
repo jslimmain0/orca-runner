@@ -9,6 +9,10 @@ export function fmtBytes(n?: number): string {
   return Math.round(n / 1024 ** 2) + 'MB'
 }
 
+export function truncateRow(row: string, width: number): string {
+  return row.length > width ? row.slice(0, width - 1) + '…' : row
+}
+
 export function dashboardLines(states: ServiceState[], sys: SysSample, sel: number, statsOn: boolean, width = 100): string[] {
   const head = ` ORCA RUNNER   CPU ${sys.cpuPercent.toFixed(0)}%  RAM ${fmtBytes(sys.usedBytes)}/${fmtBytes(sys.totalBytes)}${statsOn ? '' : '  [수집 꺼짐]'}`
   const sep = ' ' + '─'.repeat(Math.max(10, width - 2))
@@ -20,7 +24,7 @@ export function dashboardLines(states: ServiceState[], sys: SysSample, sel: numb
     const mem = statsOn ? fmtBytes(s.rssBytes).padStart(8) : ''
     const cpu = statsOn && s.cpuPercent !== undefined ? (s.cpuPercent.toFixed(0) + '%').padStart(5) : ''
     const err = s.error ? '  ' + s.error : ''
-    return `${cur}${ICON[s.status] ?? '?'} ${name} :${port} ${status}${mem}${cpu}${err}`.slice(0, width)
+    return truncateRow(`${cur}${ICON[s.status] ?? '?'} ${name} :${port} ${status}${mem}${cpu}${err}`, width)
   })
   const help = ' [↑↓]선택 [s]시작/중지 [a]전체시작 [l]로그 [m]수집 [q]종료'
   return [head, sep, ...rows, sep, help]

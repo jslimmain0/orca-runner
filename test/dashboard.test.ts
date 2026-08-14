@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { dashboardLines, fmtBytes } from '../src/tui/dashboard.js'
+import { dashboardLines, fmtBytes, truncateRow } from '../src/tui/dashboard.js'
 import type { ServiceState } from '../src/types.js'
 
 const st = (over: Partial<ServiceState['def']> & { status: ServiceState['status']; rssBytes?: number; error?: string }): ServiceState => ({
@@ -38,5 +38,10 @@ describe('dashboard', () => {
   it('수집 꺼짐이면 헤더에 표시된다', () => {
     const lines = dashboardLines([], { cpuPercent: 0, usedBytes: 0, totalBytes: 1 }, 0, false)
     expect(lines[0]).toContain('수집 꺼짐')
+  })
+
+  it('truncateRow: 폭 초과 시 말줄임', () => {
+    expect(truncateRow('abcdef', 4)).toBe('abc…')
+    expect(truncateRow('abc', 4)).toBe('abc')
   })
 })

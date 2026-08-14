@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { httpUp, portListening } from '../src/health.js'
+import { httpUp, portListening, httpProbe } from '../src/health.js'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
@@ -27,5 +27,19 @@ describe('health', () => {
   it('portListening: 리슨 중 true / 닫힌 포트 false', async () => {
     expect(await portListening(PORT)).toBe(true)
     expect(await portListening(1)).toBe(false)
+  })
+  it('httpProbe: 정상 응답은 ok=true, detail=HTTP 200', async () => {
+    const r = await httpProbe(`http://localhost:${PORT}/health`)
+    expect(r.ok).toBe(true)
+    expect(r.detail).toBe('HTTP 200')
+  })
+  it('httpProbe: 404는 ok=false, detail=HTTP 404', async () => {
+    const r = await httpProbe(`http://localhost:${PORT}/nope`)
+    expect(r).toEqual({ ok: false, detail: 'HTTP 404' })
+  })
+  it('httpProbe: 닫힌 포트는 연결 거부 detail', async () => {
+    const r = await httpProbe('http://localhost:1/health', 500)
+    expect(r.ok).toBe(false)
+    expect(r.detail).toMatch(/연결 거부|fetch failed|시간 초과/)
   })
 })
