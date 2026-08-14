@@ -74,11 +74,15 @@ export async function runApp(cfg: Config): Promise<void> {
     process.exit(0)
   }
   // 외부 신호는 강제 종료 의사로 간주 — 2단계 확인을 의도적으로 생략한다 (협의회 P0-1 결정)
+  // (raw mode에서는 Ctrl+C가 이 SIGINT가 아니라 stdin 데이터 \x03으로 도착한다 — 아래 stdin
+  //  핸들러의 별도 가드가 동일한 정책을 적용한다)
   process.on('SIGINT', () => { void quit() })
 
   screen.enter()
   draw()
   process.stdin.on('data', (b: Buffer) => {
+    // Ctrl+C: raw mode에선 SIGINT가 아니라 데이터로 도착 — 강제 종료 제스처, 확인 생략 (협의회 P0-1)
+    if (b.length === 1 && b[0] === 0x03) { void quit(); return }
     const k = parseKey(b)
     const n = sup.states().length
     if (view === 'log') {
