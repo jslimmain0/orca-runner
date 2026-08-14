@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { spawnService, killTree, isAlive, recordStart, recordStop, findOrphans } from '../src/procctl.js'
+import { spawnService, killTree, isAlive, recordStart, recordStop, findOrphans, readRunEntries, activeSessions } from '../src/procctl.js'
 import { PassThrough } from 'node:stream'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
@@ -57,12 +57,36 @@ describe('procctl', () => {
     expect(await killTree(4000000)).toBe(true)  // 존재한 적 없음 = 이미 죽음 취급
   }, 15000)
 
-  it('run.json에 시작/중지를 기록하고 고아를 찾는다', () => {
+  it('recordStop이 항목을 지운다', () => {
     const file = join(mkdtempSync(join(tmpdir(), 'orca-run-')), 'run.json')
-    recordStart('svc-a', process.pid, file)      // 살아있는 pid
-    recordStart('svc-b', 4000000, file)          // 존재하지 않는 pid
-    expect(findOrphans(file)).toEqual([{ name: 'svc-a', pid: process.pid }])
+    recordStart('svc-a', process.pid, file)
     recordStop('svc-a', file)
-    expect(findOrphans(file)).toEqual([])
+    expect(readRunEntries(file)).toEqual({})
+  })
+
+  it('run.json v2: owner를 기록하고 레거시 숫자를 정규화한다', () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'orca-run-')), 'run.json')
+    writeFileSync(file, JSON.stringify({ legacy: 4000000 }))          // v1 레거시
+    recordStart('svc-a', process.pid, file)                           // v2 (owner=현재 프로세스)
+    const r = readRunEntries(file)
+    expect(r['legacy']).toEqual({ pid: 4000000, owner: -1 })
+    expect(r['svc-a']).toEqual({ pid: process.pid, owner: process.pid })
+  })
+
+  it('findOrphans: 소유 세션이 살아있으면 고아가 아니다', () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'orca-run-')), 'run.json')
+    recordStart('mine', process.pid, file)                            // owner = 살아있는 나
+    expect(findOrphans(file)).toEqual([])                             // 고아 아님
+    expect(activeSessions(file)).toEqual([{ owner: process.pid, services: [{ name: 'mine', pid: process.pid }] }])
+  })
+
+  it('findOrphans: owner가 죽었고 pid가 살아있으면 고아, owner=0(headless)은 제외', () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'orca-run-')), 'run.json')
+    writeFileSync(file, JSON.stringify({
+      orphan: { pid: process.pid, owner: 4000000 },   // 죽은 소유자 + 살아있는 pid
+      headless: { pid: process.pid, owner: 0 },        // 의도적 분리
+      dead: { pid: 4000001, owner: 4000000 },          // pid도 죽음
+    }))
+    expect(findOrphans(file)).toEqual([{ name: 'orphan', pid: process.pid }])
   })
 })

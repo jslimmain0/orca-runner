@@ -61,23 +61,45 @@ export function isAlive(pid: number): boolean {
   try { process.kill(pid, 0); return true } catch { return false }
 }
 
-function readRun(path: string): Record<string, number> {
-  try { return JSON.parse(readFileSync(path, 'utf8')) } catch { return {} }
+export interface RunEntry { pid: number; owner: number }
+
+export function readRunEntries(path = RUN_PATH): Record<string, RunEntry> {
+  let raw: Record<string, unknown>
+  try { raw = JSON.parse(readFileSync(path, 'utf8')) } catch { return {} }
+  const out: Record<string, RunEntry> = {}
+  for (const [name, v] of Object.entries(raw)) {
+    if (typeof v === 'number') out[name] = { pid: v, owner: -1 }                       // v1 레거시
+    else if (v && typeof v === 'object' && typeof (v as RunEntry).pid === 'number') {
+      out[name] = { pid: (v as RunEntry).pid, owner: typeof (v as RunEntry).owner === 'number' ? (v as RunEntry).owner : -1 }
+    }
+  }
+  return out
 }
-function writeRun(r: Record<string, number>, path: string): void {
+function writeRunEntries(r: Record<string, RunEntry>, path: string): void {
   mkdirSync(dirname(path), { recursive: true })
   writeFileSync(path, JSON.stringify(r, null, 2))
 }
 
-export function recordStart(name: string, pid: number, path = RUN_PATH): void {
-  const r = readRun(path); r[name] = pid; writeRun(r, path)
+export function recordStart(name: string, pid: number, path = RUN_PATH, owner = process.pid): void {
+  const r = readRunEntries(path); r[name] = { pid, owner }; writeRunEntries(r, path)
 }
 export function recordStop(name: string, path = RUN_PATH): void {
-  const r = readRun(path); delete r[name]; writeRun(r, path)
+  const r = readRunEntries(path); delete r[name]; writeRunEntries(r, path)
 }
-/** run.json에 남아 있고 실제로 살아 있는 프로세스 (이전 세션의 잔재) */
+/** 소유 세션이 죽었고(단 headless=0 제외) 프로세스는 살아있는 항목 = 진짜 고아 */
 export function findOrphans(path = RUN_PATH): { name: string; pid: number }[] {
-  return Object.entries(readRun(path))
-    .filter(([, pid]) => isAlive(pid))
-    .map(([name, pid]) => ({ name, pid }))
+  return Object.entries(readRunEntries(path))
+    .filter(([, e]) => isAlive(e.pid) && e.owner !== 0 && !(e.owner > 0 && isAlive(e.owner)))
+    .map(([name, e]) => ({ name, pid: e.pid }))
+}
+/** owner가 살아있는(headless=0 제외) 세션들이 관리 중인 서비스 */
+export function activeSessions(path = RUN_PATH): { owner: number; services: { name: string; pid: number }[] }[] {
+  const by = new Map<number, { name: string; pid: number }[]>()
+  for (const [name, e] of Object.entries(readRunEntries(path))) {
+    if (e.owner > 0 && isAlive(e.owner) && isAlive(e.pid)) {
+      if (!by.has(e.owner)) by.set(e.owner, [])
+      by.get(e.owner)!.push({ name, pid: e.pid })
+    }
+  }
+  return [...by.entries()].map(([owner, services]) => ({ owner, services }))
 }

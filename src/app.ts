@@ -7,10 +7,18 @@ import { parseKey } from './tui/keys.js'
 import { dashboardLines } from './tui/dashboard.js'
 import { logViewLines } from './tui/logView.js'
 import { logPathFor } from './logs.js'
-import { findOrphans, killTree } from './procctl.js'
+import { findOrphans, activeSessions, killTree } from './procctl.js'
 import type { Config } from './types.js'
 
 export async function runApp(cfg: Config): Promise<void> {
+  // 다른 터미널이 이미 관리 중인 서비스는 정리 대상에서 제외하고 안내만 한다
+  const sessions = activeSessions()
+  if (sessions.length > 0) {
+    for (const s of sessions) {
+      console.log(`이미 다른 터미널(PID ${s.owner})에서 관리 중: ${s.services.map(x => x.name).join(', ')} — 상태만 보려면 orca status`)
+    }
+  }
+
   // 이전 세션의 고아 프로세스 정리 (TUI 진입 전 일반 콘솔에서)
   const orphans = findOrphans()
   if (orphans.length > 0) {

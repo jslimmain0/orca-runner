@@ -9,6 +9,12 @@ async function main(): Promise<void> {
   if (arg === '--version') { console.log(VERSION); return }
   if (arg === 'add') { const { runAdd } = await import('./add.js'); await runAdd(); return }
   if (arg === 'setup') { const { runSetup } = await import('./setup.js'); await runSetup(); return }
+  if (arg === 'status') {
+    const { runStatus } = await import('./status.js')
+    try { await runStatus(process.argv[3] === '--json') }
+    catch (e) { if (e instanceof ConfigError) { console.error(e.message); process.exitCode = 1 } else throw e }
+    return
+  }
   try {
     const cfg = loadConfig()
     const services = arg ? cfg.services.filter(s => s.group === arg) : cfg.services
