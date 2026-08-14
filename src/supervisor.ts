@@ -24,11 +24,15 @@ export class Supervisor extends EventEmitter {
   private entries = new Map<string, Entry>()
   private logDir?: string
   private healthTimeoutMs: number
+  private owner: number
+  private runPath?: string
 
-  constructor(cfg: Config, opts?: { logDir?: string; healthTimeoutMs?: number }) {
+  constructor(cfg: Config, opts?: { logDir?: string; healthTimeoutMs?: number; owner?: number; runPath?: string }) {
     super()
     this.logDir = opts?.logDir
     this.healthTimeoutMs = opts?.healthTimeoutMs ?? HEALTH_TIMEOUT
+    this.owner = opts?.owner ?? process.pid
+    this.runPath = opts?.runPath
     for (const def of cfg.services) {
       this.entries.set(def.name, { state: { def, status: 'DOWN' }, stopping: false })
     }
@@ -101,12 +105,12 @@ export class Supervisor extends EventEmitter {
         cpus: def.kind === 'command' && def.cpus > 0 ? def.cpus : undefined, out: e.log.stream(),
       })
       e.child = child
-      recordStart(name, pid)
+      recordStart(name, pid, this.runPath, this.owner)
       this.set(e, { status: 'STARTING', pid, error: undefined, startedAt: Date.now() })
 
       child.once('exit', (code, signal) => {
         if (e.child !== child) return   // 이미 새 spawn으로 교체됨 — 이 리스너는 과거 자식의 것
-        recordStop(name)
+        recordStop(name, this.runPath)
         e.child = undefined
         if (e.state.status === 'ERROR') { e.log?.close(); this.set(e, { pid: undefined }); return }
         const reason = signal ? `시그널 ${signal}로 종료` : `프로세스 종료 (code ${code ?? '?'})`

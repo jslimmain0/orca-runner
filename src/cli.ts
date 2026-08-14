@@ -49,6 +49,23 @@ async function main(): Promise<void> {
     return
   }
   if (arg === 'remove') { const { runRemove } = await import('./remove.js'); await runRemove(process.argv.slice(3)); return }
+  if (arg === 'up' || arg === 'down') {
+    const { runUp, runDown } = await import('./headless.js')
+    const rest = process.argv.slice(3)
+    const yes = rest.includes('--yes')
+    const group = rest.find(a => a !== '--yes')
+    try { arg === 'up' ? await runUp(group) : await runDown(group, yes) }
+    catch (e) { if (e instanceof ConfigError) { console.error(e.message); process.exitCode = 1 } else throw e }
+    return
+  }
+  if (arg === 'start' || arg === 'stop') {
+    const name = process.argv[3]
+    if (!name) { console.error(`사용법: orca ${arg} <이름>`); process.exitCode = 1; return }
+    const { runStartStop } = await import('./headless.js')
+    try { await runStartStop(arg, name) }
+    catch (e) { if (e instanceof ConfigError) { console.error(e.message); process.exitCode = 1 } else throw e }
+    return
+  }
   if (arg === 'groups') {
     try {
       const cfg = loadConfig()
