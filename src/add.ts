@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { createInterface } from 'node:readline/promises'
 import { parseDocument } from 'yaml'
-import { CONFIG_PATH, ORCA_HOME, loadConfigFromString } from './config.js'
+import { CONFIG_PATH, ORCA_HOME, loadConfigFromString, RESERVED_WORDS } from './config.js'
 
 export interface NewService {
   name: string; group?: string; kind: 'spring' | 'command'
@@ -23,6 +23,10 @@ export function validatePort(input: string, cfg: { services: { name: string; por
   const dup = cfg.services.find(s => s.port === port)
   if (dup) return { ok: false, msg: `포트 ${port}은(는) 이미 ${dup.name}이(가) 쓰고 있습니다` }
   return { ok: true, port }
+}
+
+export function validateGroupName(g: string): string | null {
+  return (RESERVED_WORDS as readonly string[]).includes(g) ? `'${g}'은(는) 예약어라 그룹명으로 쓸 수 없습니다` : null
 }
 
 export function resolveGroup(input: string, existing: string[]): { value: string; needsConfirm?: string } {
@@ -88,7 +92,7 @@ export async function runAdd(): Promise<void> {
       }
       const portStr = await askValid('포트 (예: 8081): ', v => { const r = validatePort(v, cur); return r.ok ? null : r.msg })
       const groupHint = existingGroups.length > 0 ? `, 기존: ${existingGroups.join(', ')}` : ''
-      let group = (await ask(`그룹 (없으면 엔터${groupHint}): `))
+      let group = await askValid(`그룹 (없으면 엔터${groupHint}): `, v => v === '' ? null : validateGroupName(v))
       if (group) {
         const g = resolveGroup(group, existingGroups)
         if (g.needsConfirm) {

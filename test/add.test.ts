@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { appendService, validateName, validatePort, resolveGroup } from '../src/add.js'
+import { appendService, validateName, validatePort, resolveGroup, validateGroupName } from '../src/add.js'
 import { loadConfigFromString } from '../src/config.js'
 
 describe('appendService', () => {
@@ -70,5 +70,10 @@ describe('add validators', () => {
     expect(resolveGroup(' tspay ', ['tspay'])).toEqual({ value: 'tspay' })
     expect(resolveGroup('Tspay', ['tspay'])).toEqual({ value: 'Tspay', needsConfirm: 'tspay' })
     expect(resolveGroup('infra', ['tspay'])).toEqual({ value: 'infra' })
+  })
+  it('validateGroupName: 예약어 그룹 거부', () => {
+    expect(validateGroupName('tspay')).toBeNull()
+    expect(validateGroupName('status')).toMatch(/예약어/)
+    expect(validateGroupName('help')).toMatch(/예약어/)
   })
 })

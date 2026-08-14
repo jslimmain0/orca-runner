@@ -9,6 +9,8 @@ export class ConfigError extends Error {}
 export const ORCA_HOME = join(homedir(), '.orca')
 export const CONFIG_PATH = join(ORCA_HOME, 'services.yaml')
 
+export const RESERVED_WORDS = ['add', 'setup', 'status', 'up', 'down', 'start', 'stop', 'remove', 'groups', 'help'] as const
+
 const BUILTIN = { heapMb: 512, cpus: 2, priority: 'belowNormal' as Priority }
 const KINDS: Kind[] = ['spring', 'command']
 const PRIORITIES: Priority[] = ['normal', 'belowNormal', 'idle']
