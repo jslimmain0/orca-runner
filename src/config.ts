@@ -38,7 +38,15 @@ export function loadConfigFromString(src: string, path = '(inline)'): Config {
     throw new ConfigError(`${path} ${lineOf(keys)}행: ${msg}`)
   }
 
+  const posInt = (v: unknown): boolean => typeof v === 'number' && Number.isInteger(v) && v >= 0
   const d = (raw.defaults as { spring?: Partial<typeof BUILTIN> } | undefined)?.spring ?? {}
+
+  // Validate defaults.spring before merging
+  const dAt = ['defaults', 'spring']
+  if (d.heapMb !== undefined && !posInt(d.heapMb)) fail(dAt, 'defaults.spring.heapMb는 0 이상의 정수여야 합니다')
+  if (d.cpus !== undefined && !posInt(d.cpus)) fail(dAt, 'defaults.spring.cpus는 0 이상의 정수여야 합니다')
+  if (d.priority !== undefined && !PRIORITIES.includes(d.priority as Priority)) fail(dAt, 'defaults.spring.priority는 normal|belowNormal|idle 중 하나여야 합니다')
+
   const springDefaults = { ...BUILTIN, ...d }
 
   const rawServices = raw.services as Record<string, Record<string, unknown>> | undefined
@@ -61,7 +69,6 @@ export function loadConfigFromString(src: string, path = '(inline)'): Config {
     if (s.priority !== undefined && !PRIORITIES.includes(s.priority as Priority)) {
       fail(at, `${name}: priority는 normal|belowNormal|idle 중 하나여야 합니다`)
     }
-    const posInt = (v: unknown): boolean => typeof v === 'number' && Number.isInteger(v) && v >= 0
     if (s.heapMb !== undefined && !posInt(s.heapMb)) fail(at, `${name}: heapMb는 0 이상의 정수여야 합니다`)
     if (s.cpus !== undefined && !posInt(s.cpus)) fail(at, `${name}: cpus는 0 이상의 정수여야 합니다`)
     if (s.jvmArgs !== undefined && (!Array.isArray(s.jvmArgs) || s.jvmArgs.some(a => typeof a !== 'string'))) {

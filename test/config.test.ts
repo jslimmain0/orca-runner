@@ -89,4 +89,14 @@ describe('config', () => {
     const bad = `services:\n  a:\n    kind: command\n    dir: C:\\x\n    run: r\n    port: 1\n    cpus: -2\n`
     expect(() => loadConfigFromString(bad)).toThrowError(/cpus/)
   })
+
+  it('defaults.spring.heapMb가 숫자가 아니면 에러', () => {
+    const bad = `defaults:\n  spring:\n    heapMb: many\nservices:\n  a:\n    kind: spring\n    dir: C:\\x\n    port: 1\n`
+    expect(() => loadConfigFromString(bad)).toThrowError(/defaults\.spring\.heapMb/)
+  })
+
+  it('defaults.spring.priority 오타는 에러', () => {
+    const bad = `defaults:\n  spring:\n    priority: turbo\nservices:\n  a:\n    kind: spring\n    dir: C:\\x\n    port: 1\n`
+    expect(() => loadConfigFromString(bad)).toThrowError(/defaults\.spring\.priority/)
+  })
 })
