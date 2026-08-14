@@ -2,6 +2,7 @@ import { Supervisor } from './supervisor.js'
 import { loadConfig } from './config.js'
 import { readRunEntries, recordStop, killTree, isAlive } from './procctl.js'
 import { readLastSession, resumeSet } from './session.js'
+import { portListening } from './health.js'
 import type { Config } from './types.js'
 
 interface HeadlessOpts { cfg?: Config; runPath?: string; logDir?: string }
@@ -24,12 +25,27 @@ export async function runUp(group: string | undefined, opts: HeadlessOpts = {}):
     }
   }
   if (cfg.services.length === 0) { console.error(group ? `그룹 '${group}'에 서비스가 없습니다` : '등록된 서비스가 없습니다'); process.exitCode = 1; return }
-  const sup = new Supervisor(cfg, { owner: 0, logDir: opts.logDir, runPath: opts.runPath })
-  await sup.startAll()
+
+  // 멱등성: 이미 이 orca(owner=0)가 띄워 살아있는 서비스는 재스폰하지 않는다 — 재실행한 orca up이
+  // 매번 포트 점유로 ERROR를 내고 exit 1로 끝나던 문제. portListening으로 한 번 더 확인해 실제로
+  // 응답 중인 것만 스킵하고, 프로세스는 살아있는데 응답이 없으면(멈춤 등) 기존대로 재시작을 시도한다.
+  const runEntries = readRunEntries(opts.runPath)
+  const already = new Set<string>()
+  for (const s of cfg.services) {
+    const e = runEntries[s.name]
+    if (e && e.owner === 0 && isAlive(e.pid) && await portListening(s.port)) already.add(s.name)
+  }
   let ok = true
-  for (const s of sup.states()) {
-    if (s.status === 'UP') console.log(`✔ ${s.def.name} UP (:${s.def.port})`)
-    else { ok = false; console.log(`✖ ${s.def.name} ${s.status}${s.error ? `: ${s.error}` : ''}`) }
+  for (const name of already) console.log(`✔ ${name} UP (이미 실행 중)`)
+
+  const remaining: Config = { services: cfg.services.filter(s => !already.has(s.name)) }
+  if (remaining.services.length > 0) {
+    const sup = new Supervisor(remaining, { owner: 0, logDir: opts.logDir, runPath: opts.runPath })
+    await sup.startAll()
+    for (const s of sup.states()) {
+      if (s.status === 'UP') console.log(`✔ ${s.def.name} UP (:${s.def.port})`)
+      else { ok = false; console.log(`✖ ${s.def.name} ${s.status}${s.error ? `: ${s.error}` : ''}`) }
+    }
   }
   process.exitCode = ok ? 0 : 1
 }

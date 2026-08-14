@@ -87,10 +87,11 @@ export function isAlive(pid: number): boolean {
 export interface RunEntry { pid: number; owner: number }
 
 export function readRunEntries(path = RUN_PATH): Record<string, RunEntry> {
-  let raw: Record<string, unknown>
-  try { raw = JSON.parse(readFileSync(path, 'utf8')) } catch { return {} }
+  let raw: unknown
+  try { raw = JSON.parse(readFileSync(path, 'utf8')) ?? {} } catch { return {} }
+  if (typeof raw !== 'object' || Array.isArray(raw)) return {}
   const out: Record<string, RunEntry> = {}
-  for (const [name, v] of Object.entries(raw)) {
+  for (const [name, v] of Object.entries(raw as Record<string, unknown>)) {
     if (typeof v === 'number') out[name] = { pid: v, owner: -1 }                       // v1 레거시
     else if (v && typeof v === 'object' && typeof (v as RunEntry).pid === 'number') {
       out[name] = { pid: (v as RunEntry).pid, owner: typeof (v as RunEntry).owner === 'number' ? (v as RunEntry).owner : -1 }

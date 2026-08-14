@@ -38,6 +38,19 @@ describe('headless', () => {
     expect(readRunEntries(runPath)['h-a']).toBeUndefined()
     process.exitCode = 0
   }, 30000)
+
+  it('up을 두 번 연속 실행해도 두 번째도 exit 0이며 같은 프로세스(pid)가 유지된다', async () => {
+    await runUp(undefined, { cfg: cfg(45871), runPath, logDir })
+    expect(process.exitCode ?? 0).toBe(0)
+    const pid1 = readRunEntries(runPath)['h-a'].pid
+    process.exitCode = 0
+
+    await runUp(undefined, { cfg: cfg(45871), runPath, logDir })
+    expect(process.exitCode ?? 0).toBe(0)
+    const pid2 = readRunEntries(runPath)['h-a'].pid
+    expect(pid2).toBe(pid1)   // 재스폰되지 않음 — 같은 프로세스 유지
+    process.exitCode = 0
+  }, 30000)
 })
 
 describe('headless: 다른 세션 소유 보호', () => {

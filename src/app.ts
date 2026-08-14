@@ -26,7 +26,11 @@ export async function runApp(cfg: Config): Promise<void> {
   if (orphans.length > 0) {
     const rl = createInterface({ input: process.stdin, output: process.stdout })
     console.log('이전 세션이 남긴 프로세스가 있습니다:')
-    for (const o of orphans) console.log(`  - ${o.name} (PID ${o.pid})`)
+    for (const o of orphans) {
+      const svc = cfg.services.find(s => s.name === o.name)
+      const extra = svc ? `, :${svc.port}, ${(await portListening(svc.port)) ? '응답 있음' : '응답 없음'}` : ''
+      console.log(`  - ${o.name} (PID ${o.pid}${extra})`)
+    }
     const ans = await rl.question('정리할까요? [y/N] ')
     rl.close()
     if (ans.trim().toLowerCase() === 'y') for (const o of orphans) await killTree(o.pid)
@@ -46,9 +50,14 @@ export async function runApp(cfg: Config): Promise<void> {
   const last = readLastSession()
   const resume = resumeSet(last, cfg)
   const failed = failedSet(last, cfg)
-  let banner = resume.length > 0
-    ? ` 지난 세션: ${resume.length}개 실행 중이었음 — [u] 재개${failed.length ? ` / 실패했던 서비스: ${failed.join(', ')} (l로 사유 확인)` : ''}`
-    : undefined
+  // resume이 있으면 재개 유도 배너(+실패 병기), resume 없이 failed만 있어도(=전부 실패로 끝난 세션)
+  // 원인 확인 경로(l)를 잃지 않도록 배너를 띄운다 — 둘 다 없으면 배너 없음
+  let banner: string | undefined
+  if (resume.length > 0) {
+    banner = ` 지난 세션: ${resume.length}개 실행 중이었음 — [u] 재개${failed.length ? ` / 실패했던 서비스: ${failed.join(', ')} (l로 사유 확인)` : ''}`
+  } else if (failed.length > 0) {
+    banner = ` 지난 세션에 실패: ${failed.join(', ')} (l로 사유 확인)`
+  }
 
   const draw = () => {
     const states = sup.states()
@@ -147,7 +156,7 @@ export async function runApp(cfg: Config): Promise<void> {
         break
       }
       case 'a': void sup.startAll(); break
-      case 'u': if (banner) { banner = undefined; void sup.startMany(resume) } break
+      case 'u': if (banner) { banner = undefined; if (resume.length > 0) void sup.startMany(resume) } break
       case 'x': {
         const s3 = sup.states()[sel]
         if (s3.status !== 'UP' && s3.status !== 'STARTING' && s3.status !== 'BUILDING') sup.setSkip(s3.def.name, !s3.skipped)

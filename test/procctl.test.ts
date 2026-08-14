@@ -80,6 +80,12 @@ describe('procctl', () => {
     expect(activeSessions(file)).toEqual([{ owner: process.pid, services: [{ name: 'mine', pid: process.pid }] }])
   })
 
+  it('readRunEntries: run.json이 리터럴 null이면 크래시 없이 빈 객체', () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'orca-run-')), 'run.json')
+    writeFileSync(file, 'null')
+    expect(readRunEntries(file)).toEqual({})
+  })
+
   it('findOrphans: owner가 죽었고 pid가 살아있으면 고아, owner=0(headless)은 제외', () => {
     const file = join(mkdtempSync(join(tmpdir(), 'orca-run-')), 'run.json')
     writeFileSync(file, JSON.stringify({
