@@ -151,11 +151,30 @@ export class Supervisor extends EventEmitter {
     if (e.state.status === 'BUILDING' && e.buildChild?.pid) {
       e.stopping = true
       await killTree(e.buildChild.pid)
+    } else if (e.state.pid && e.state.status !== 'DOWN') {
+      e.stopping = true
+      await killTree(e.state.pid)
+    } else {
       return
     }
-    if (!e.state.pid || e.state.status === 'DOWN') return
-    e.stopping = true
-    await killTree(e.state.pid)
+    await this.waitSettled(e)
+  }
+
+  /**
+   * killTree()는 taskkill.exe 프로세스가 끝나면 resolve된다 — 대상 자식의 'exit' 이벤트(상태를
+   * DOWN/CRASHED 등 종단으로 옮기는 주체)는 OS 통지 지연으로 그보다 늦게 돌 수 있다. 이 사이에
+   * start()가 불리면 옛 상태(UP/STARTING/BUILDING)를 보고 초입 가드에서 조용히 no-op하는
+   * 레이스가 생긴다 — stop() 자체가 상태 정착까지 기다려 이를 근본 차단한다.
+   */
+  private async waitSettled(e: Entry): Promise<void> {
+    // 함수 호출 경계로 TS의 상태 좁히기(narrowing)를 우회 — start()의 cur() 패턴과 동일한 이유
+    const status = (): ServiceStatus => e.state.status
+    const deadline = Date.now() + 5000
+    while (Date.now() < deadline && (
+      status() === 'UP' || status() === 'STARTING' || status() === 'BUILDING' || e.state.pid !== undefined || e.buildChild !== undefined
+    )) {
+      await new Promise(r => setTimeout(r, 50))
+    }
   }
 
   async startAll(): Promise<void> {

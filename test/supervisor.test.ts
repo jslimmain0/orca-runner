@@ -170,4 +170,14 @@ describe('supervisor', () => {
     const log = readFileSync(join(logDir, 'dummy-a.log'), 'utf8')
     expect(log).toMatch(/\[ORCA\] .+ ERROR: (프로세스 종료|시그널)/)
   }, 15000)
+
+  it('stop 직후 start(재시작)가 새 프로세스로 UP된다', async () => {
+    sup = new Supervisor(cfg(45891, 45892), { logDir: mkdtempSync(join(tmpdir(), 'orca-sv-')) })
+    await sup.start('dummy-a')
+    const oldPid = sup.pids().get('dummy-a')!
+    await sup.stop('dummy-a')
+    await sup.start('dummy-a')                       // 정착 대기 덕에 no-op이면 안 됨
+    expect(sup.states()[0].status).toBe('UP')
+    expect(sup.pids().get('dummy-a')).not.toBe(oldPid)
+  }, 30000)
 })
