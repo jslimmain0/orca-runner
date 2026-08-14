@@ -35,7 +35,9 @@ export async function runApp(cfg: Config): Promise<void> {
     const states = sup.states()
     const width = process.stdout.columns || 100
     if (view === 'dash') {
-      screen.render(dashboardLines(states, sampleSystem(), sel, statsOn, width))
+      screen.render(dashboardLines(states, sampleSystem(), {
+        sel, statsOn, width, color: process.stdout.isTTY === true && !process.env.NO_COLOR,
+      }))
     } else {
       const name = states[sel].def.name
       screen.render(logViewLines(name, logPathFor(name), process.stdout.rows || 30, logOffset, width))

@@ -64,7 +64,7 @@ export class Supervisor extends EventEmitter {
       if (def.kind === 'spring') {
         const cache = loadCache()
         if (needsRebuild(def.dir, cache[name])) {
-          this.set(e, { status: 'BUILDING', error: undefined })
+          this.set(e, { status: 'BUILDING', error: undefined, startedAt: Date.now() })
           try {
             const jar = await buildJar(def, e.log.stream(), child => { e.buildChild = child })
             cache[name] = { builtAt: Date.now(), jar }
@@ -85,7 +85,7 @@ export class Supervisor extends EventEmitter {
         const reason = `포트 ${def.port} 점유 중: ${holder.exe} (PID ${holder.pid})`
         this.noteToLog(e, reason)
         e.log?.close()
-        this.set(e, { status: 'ERROR', error: reason })
+        this.set(e, { status: 'ERROR', error: reason, startedAt: undefined })
         return
       }
 
@@ -95,7 +95,7 @@ export class Supervisor extends EventEmitter {
       })
       e.child = child
       recordStart(name, pid)
-      this.set(e, { status: 'STARTING', pid, error: undefined })
+      this.set(e, { status: 'STARTING', pid, error: undefined, startedAt: Date.now() })
 
       child.once('exit', (code, signal) => {
         if (e.child !== child) return   // 이미 새 spawn으로 교체됨 — 이 리스너는 과거 자식의 것
@@ -105,7 +105,9 @@ export class Supervisor extends EventEmitter {
         const reason = signal ? `시그널 ${signal}로 종료` : `프로세스 종료 (code ${code ?? '?'})`
         if (!e.stopping) this.noteToLog(e, reason)
         e.log?.close()
-        this.set(e, e.stopping ? { status: 'DOWN', pid: undefined } : { status: 'CRASHED', pid: undefined, error: reason })
+        this.set(e, e.stopping
+          ? { status: 'DOWN', pid: undefined, startedAt: undefined }
+          : { status: 'CRASHED', pid: undefined, error: reason, startedAt: undefined })
       })
 
       // 함수 호출 경계로 TS의 상태 좁히기(narrowing)를 우회 — this.set()이 Object.assign으로
@@ -118,11 +120,11 @@ export class Supervisor extends EventEmitter {
         if (def.health) {
           const p = await httpProbe(def.health)
           lastDetail = p.detail
-          if (p.ok && cur() === 'STARTING') { this.set(e, { status: 'UP' }); return }
+          if (p.ok && cur() === 'STARTING') { this.set(e, { status: 'UP', startedAt: undefined }); return }
         } else {
           const up = await portListening(def.port)
           lastDetail = up ? '' : `포트 ${def.port} 리슨 없음`
-          if (up && cur() === 'STARTING') { this.set(e, { status: 'UP' }); return }
+          if (up && cur() === 'STARTING') { this.set(e, { status: 'UP', startedAt: undefined }); return }
         }
         await new Promise(r => setTimeout(r, HEALTH_INTERVAL))
       }
@@ -132,14 +134,14 @@ export class Supervisor extends EventEmitter {
           ? `${sec}초 내 ${def.health} 확인 실패 (마지막: ${lastDetail}) — l로 로그 확인`
           : `${sec}초 내 포트 ${def.port} 리슨 확인 실패`
         this.noteToLog(e, reason)
-        this.set(e, { status: 'ERROR', error: reason })
+        this.set(e, { status: 'ERROR', error: reason, startedAt: undefined })
         if (e.state.pid) await killTree(e.state.pid)   // 좀비 방지 — exit 핸들러가 pid만 정리 (ERROR 유지)
       }
     } catch (err) {
       this.noteToLog(e, (err as Error).message)
       e.log?.close()
-      if (e.stopping) { this.set(e, { status: 'DOWN', pid: undefined }); return }
-      this.set(e, { status: 'ERROR', error: (err as Error).message })
+      if (e.stopping) { this.set(e, { status: 'DOWN', pid: undefined, startedAt: undefined }); return }
+      this.set(e, { status: 'ERROR', error: (err as Error).message, startedAt: undefined })
     }
   }
 

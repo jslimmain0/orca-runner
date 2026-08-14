@@ -1,7 +1,9 @@
-import type { ServiceState } from '../types.js'
+import type { ServiceState, ServiceStatus } from '../types.js'
 import type { SysSample } from '../sysinfo.js'
 
-const ICON: Record<string, string> = { UP: '●', STARTING: '◐', BUILDING: '◔', DOWN: '○', CRASHED: '✖', ERROR: '✖' }
+const ICON: Record<string, string> = { UP: '●', STARTING: '▲', BUILDING: '■', DOWN: '○', CRASHED: '×', ERROR: '!' }
+const SGR: Record<string, string> = { UP: '\x1b[32m', STARTING: '\x1b[33m', BUILDING: '\x1b[33m', DOWN: '\x1b[2m', CRASHED: '\x1b[31m', ERROR: '\x1b[35m' }
+const RESET = '\x1b[0m'
 
 export function fmtBytes(n?: number): string {
   if (n === undefined) return '-'
@@ -13,19 +15,50 @@ export function truncateRow(row: string, width: number): string {
   return row.length > width ? row.slice(0, width - 1) + '…' : row
 }
 
-export function dashboardLines(states: ServiceState[], sys: SysSample, sel: number, statsOn: boolean, width = 100): string[] {
-  const head = ` ORCA RUNNER   CPU ${sys.cpuPercent.toFixed(0)}%  RAM ${fmtBytes(sys.usedBytes)}/${fmtBytes(sys.totalBytes)}${statsOn ? '' : '  [수집 꺼짐]'}`
+/** 평문 행에서 아이콘+상태 구간만 SGR로 감싼다 — 상태 텍스트가 항상 1차 신호, 색은 가속 장치 */
+export function colorizeRow(row: string, status: ServiceStatus, on: boolean): string {
+  if (!on) return row
+  const sgr = SGR[status]
+  if (!sgr) return row
+  const icon = ICON[status]
+  const idx = row.indexOf(icon)
+  if (idx === -1) return row
+  const end = row.indexOf('  ', row.indexOf(status, idx))   // 상태 셀 끝(패딩 공백)까지
+  const stop = end === -1 ? row.length : end
+  return row.slice(0, idx) + sgr + row.slice(idx, stop) + RESET + row.slice(stop)
+}
+
+export interface DashOpts {
+  sel: number; statsOn: boolean
+  width?: number; now?: number; color?: boolean; helpOverride?: string
+}
+
+function statusCell(s: ServiceState, now: number): string {
+  const elapsed = s.startedAt !== undefined ? Math.max(0, Math.round((now - s.startedAt) / 1000)) : 0
+  if (s.status === 'BUILDING') return `BUILDING ${elapsed}s`
+  if (s.status === 'STARTING') return elapsed > 30 ? `STARTING ${elapsed}s/120s` : `STARTING ${elapsed}s`
+  return s.status
+}
+
+export function dashboardLines(states: ServiceState[], sys: SysSample, opts: DashOpts): string[] {
+  const width = opts.width ?? 100
+  const now = opts.now ?? Date.now()
+  const color = opts.color ?? false
+  const svcSum = states.reduce((n, s) => n + (s.rssBytes ?? 0), 0)
+  const head = ` ORCA RUNNER   시스템 CPU ${sys.cpuPercent.toFixed(0)}% · RAM ${fmtBytes(sys.usedBytes)}/${fmtBytes(sys.totalBytes)}`
+    + (opts.statsOn ? (svcSum > 0 ? ` · 서비스 ${fmtBytes(svcSum)}` : '') : '  [수집 꺼짐]')
   const sep = ' ' + '─'.repeat(Math.max(10, width - 2))
   const rows = states.map((s, i) => {
-    const cur = i === sel ? '>' : ' '
+    const cur = i === opts.sel ? '>' : ' '
     const name = s.def.name.padEnd(16).slice(0, 16)
     const port = String(s.def.port).padStart(5)
-    const status = s.status.padEnd(9)
-    const mem = statsOn ? fmtBytes(s.rssBytes).padStart(8) : ''
-    const cpu = statsOn && s.cpuPercent !== undefined ? (s.cpuPercent.toFixed(0) + '%').padStart(5) : ''
-    const err = s.error ? '  ' + s.error : ''
-    return truncateRow(`${cur}${ICON[s.status] ?? '?'} ${name} :${port} ${status}${mem}${cpu}${err}`, width)
+    const status = statusCell(s, now).padEnd(17)
+    const mem = opts.statsOn ? fmtBytes(s.rssBytes).padStart(8) : ''
+    const cpu = opts.statsOn && s.cpuPercent !== undefined ? (s.cpuPercent.toFixed(0) + '%').padStart(5) : ''
+    const note = s.error ? '  ' + s.error : (s.status === 'BUILDING' ? '  (빌드는 수 분 걸릴 수 있음)' : '')
+    const plain = truncateRow(`${cur}${ICON[s.status] ?? '?'} ${name} :${port} ${status}${mem}${cpu}${note}`, width)
+    return colorizeRow(plain, s.status, color)
   })
-  const help = ' [↑↓]선택 [s]시작/중지 [a]전체시작 [l]로그 [m]수집 [q]종료'
+  const help = opts.helpOverride ?? ' [↑↓]선택 [s]시작/중지 [a]전체시작 [l]로그 [m]수집 [q]종료'
   return [head, sep, ...rows, sep, help]
 }

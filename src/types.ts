@@ -27,4 +27,5 @@ export interface ServiceState {
   error?: string
   cpuPercent?: number
   rssBytes?: number
+  startedAt?: number     // 현재 phase(BUILDING/STARTING) 진입 시각 ms — 경과 시간 표시용
 }
