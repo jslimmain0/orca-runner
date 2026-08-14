@@ -14,4 +14,10 @@ describe('removeService', () => {
   it('미등록 이름은 throw', () => {
     expect(() => removeService(SRC, 'nope')).toThrowError(/등록돼 있지 않습니다/)
   })
+  it('마지막 서비스를 제거하면 빈 services로 loadConfigFromString에 로드된다', () => {
+    const single = 'services:\n  only:\n    kind: command\n    dir: C:\\o\n    run: r\n    port: 1\n'
+    const out = removeService(single, 'only')
+    const cfg = loadConfigFromString(out)
+    expect(cfg.services).toEqual([])
+  })
 })

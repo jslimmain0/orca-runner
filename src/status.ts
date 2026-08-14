@@ -21,6 +21,11 @@ export async function statusReport(opts: { cfg: Config; runPath?: string }): Pro
 
 export async function runStatus(json: boolean): Promise<void> {
   const cfg = loadConfig()
+  if (cfg.services.length === 0) {
+    console.error('등록된 서비스가 없습니다 — \'orca add\'로 등록하세요.')
+    process.exitCode = 1
+    return
+  }
   const { rows, exitCode } = await statusReport({ cfg })
   if (json) {
     console.log(JSON.stringify(rows, null, 2))

@@ -59,15 +59,9 @@ describe('config', () => {
     expect(() => loadConfigFromString(bad)).toThrowError(/포트/)
   })
 
-  it('services가 비어있으면 줄 번호와 함께 에러', () => {
-    const bad = `services: {}\n`
-    expect(() => loadConfigFromString(bad, 'C:\\cfg.yaml')).toThrowError(ConfigError)
-    try { loadConfigFromString(bad, 'C:\\cfg.yaml') } catch (e) {
-      const msg = (e as Error).message
-      expect(msg).toMatch(/C:\\cfg\.yaml/)
-      expect(msg).toContain('1')                       // 줄 번호 포함
-      expect(msg).toMatch(/services/)
-    }
+  it('services가 비어있으면 빈 배열을 반환한다', () => {
+    const empty = `services: {}\n`
+    expect(loadConfigFromString(empty).services).toEqual([])
   })
 
   it('잘못된 서비스 키 이름은 줄 번호와 함께 거부한다', () => {

@@ -53,8 +53,7 @@ export function loadConfigFromString(src: string, path = '(inline)'): Config {
 
   const rawServices = raw.services as Record<string, Record<string, unknown>> | undefined
   if (!rawServices || Object.keys(rawServices).length === 0) {
-    const line = doc.hasIn(['services']) ? lineOf(['services']) : 1
-    throw new ConfigError(`${path} ${line}행: services 항목이 비어 있습니다.`)
+    return { services: [] }
   }
 
   const services: ServiceDef[] = []

@@ -50,7 +50,15 @@ async function main(): Promise<void> {
   }
   if (arg === 'remove') { const { runRemove } = await import('./remove.js'); await runRemove(process.argv.slice(3)); return }
   if (arg === 'groups') {
-    try { for (const l of groupSummary(loadConfig())) console.log(l) }
+    try {
+      const cfg = loadConfig()
+      if (cfg.services.length === 0) {
+        console.error('등록된 서비스가 없습니다 — \'orca add\'로 등록하세요.')
+        process.exitCode = 1
+      } else {
+        for (const l of groupSummary(cfg)) console.log(l)
+      }
+    }
     catch (e) { if (e instanceof ConfigError) { console.error(e.message); process.exitCode = 1 } else throw e }
     return
   }
