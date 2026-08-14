@@ -48,6 +48,7 @@ async function main(): Promise<void> {
     catch (e) { if (e instanceof ConfigError) { console.error(e.message); process.exitCode = 1 } else throw e }
     return
   }
+  if (arg === 'remove') { const { runRemove } = await import('./remove.js'); await runRemove(process.argv.slice(3)); return }
   if (arg === 'groups') {
     try { for (const l of groupSummary(loadConfig())) console.log(l) }
     catch (e) { if (e instanceof ConfigError) { console.error(e.message); process.exitCode = 1 } else throw e }
