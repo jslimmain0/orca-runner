@@ -1,6 +1,7 @@
 import { Supervisor } from './supervisor.js'
 import { loadConfig } from './config.js'
 import { readRunEntries, recordStop, killTree, isAlive } from './procctl.js'
+import { readLastSession, resumeSet } from './session.js'
 import type { Config } from './types.js'
 
 interface HeadlessOpts { cfg?: Config; runPath?: string; logDir?: string }
@@ -11,7 +12,17 @@ function pick(cfg: Config, group?: string): Config {
 }
 
 export async function runUp(group: string | undefined, opts: HeadlessOpts = {}): Promise<void> {
-  const cfg = pick(opts.cfg ?? loadConfig(), group)
+  let cfg = pick(opts.cfg ?? loadConfig(), group)
+  // 인자 없이 orca up만 치면 지난 세션(직전 종료 시점에 UP/STARTING/BUILDING이었던 서비스)만 재개한다 —
+  // --all이면 강제로 전체, group 지정이나 테스트 주입(opts.cfg)이면 이 기본값을 건드리지 않는다.
+  if (!opts.cfg && group === undefined && !process.argv.includes('--all')) {
+    const rs = resumeSet(readLastSession(), cfg)
+    if (rs.length > 0) {
+      const set = new Set(rs)
+      cfg = { services: cfg.services.filter(s => set.has(s.name)) }
+      console.log(`지난 세션 기준 ${cfg.services.length}개를 시작합니다 (전체는 orca up --all)`)
+    }
+  }
   if (cfg.services.length === 0) { console.error(group ? `그룹 '${group}'에 서비스가 없습니다` : '등록된 서비스가 없습니다'); process.exitCode = 1; return }
   const sup = new Supervisor(cfg, { owner: 0, logDir: opts.logDir, runPath: opts.runPath })
   await sup.startAll()

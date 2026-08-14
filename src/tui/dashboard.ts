@@ -30,7 +30,7 @@ export function colorizeRow(row: string, status: ServiceStatus, on: boolean): st
 
 export interface DashOpts {
   sel: number; statsOn: boolean
-  width?: number; now?: number; color?: boolean; helpOverride?: string
+  width?: number; now?: number; color?: boolean; helpOverride?: string; banner?: string
 }
 
 function statusCell(s: ServiceState, now: number): string {
@@ -66,5 +66,7 @@ export function dashboardLines(states: ServiceState[], sys: SysSample, opts: Das
     return colorizeRow(plain, s.status, color)
   })
   const help = opts.helpOverride ?? ' [↑↓/1-9]선택 [s/Enter]시작/중지 [r]재시작 [a]전체 [x]제외 [l]로그 [m]수집 [q]종료'
-  return [head, sep, ...rows, sep, help]
+  const out = [head, sep, ...rows, sep, help]
+  if (opts.banner) out.splice(1, 0, opts.banner)
+  return out
 }

@@ -18,9 +18,18 @@ orca setup           # 최초 1회: Defender 예외 등록, 환경 점검
 orca add             # 서비스 등록 (대화형) → ~\.orca\services.yaml
 orca                 # 전체 대시보드
 orca <그룹>          # 그룹만
+
+orca status [--json]      # TUI 없이 상태 확인 (전부 UP이면 exit 0)
+orca up [그룹|--all]      # headless 일괄 시작 (인자 없으면 지난 세션 재개, --all이면 전체)
+orca down [그룹] --yes    # headless 일괄 종료 (--yes 없으면 대상만 표시)
+orca start|stop <이름>    # 개별 서비스 시작/종료
+orca remove [이름]        # 서비스 등록 해제
+orca groups               # 그룹 목록
+orca --help                # 전체 명령 요약
 ```
 
-대시보드 키: `↑↓/1-9` 선택 · `s/Enter` 시작/중지 · `r` 재시작 · `a` 전체 시작 · `l` 로그 · `m` 수집 on/off · `q` 종료(전체 정리)
+대시보드 키: `↑↓/1-9` 선택 · `s/Enter` 시작/중지 · `r` 재시작 · `a` 전체 · `x` 제외(SKIP) · `l` 로그 · `m` 수집 on/off · `q` 종료(전체 정리)
+지난 세션에 실행 중이던 서비스가 있으면 배너가 뜨고 `u`로 재개할 수 있다.
 
 ## 동작 방식
 
@@ -30,6 +39,9 @@ orca <그룹>          # 그룹만
 - 자원 수집: 장수명 PowerShell 헬퍼 1개에 3초마다 일괄 요청. `m`으로 완전히 끌 수 있음.
 - command 서비스의 MEM/CPU 표시는 cmd 래퍼 프로세스 기준이라 실제 작업 프로세스보다 작게 보일 수 있다 (spring 서비스는 정확).
 - command 서비스의 cpus(affinity)는 명시적으로 설정한 경우에만 적용되며, 현재는 래퍼 프로세스에 적용된다.
+- SKIP: 대시보드에서 `x`로 서비스를 제외 처리하면(IDE 등에서 직접 띄운 경우) `a`/기본 시작 대상에서 빠진다. 포트가 응답하지 않으면 `SKIP(!)`로 경고 표시.
+- 세션 재개: 종료(`q`) 시 그 순간의 서비스 상태를 `~\.orca\last-session.json`에 저장한다. 다음 실행 시 UP/STARTING/BUILDING이었던 서비스가 있으면 대시보드에 배너로 안내하고(`u`로 재개), `orca up`도 그룹 지정 없이 실행하면 기본으로 이 세션만 재개한다(전체는 `orca up --all`).
+- 소유 세션: `orca up`/`orca start` 등 headless로 띄운 서비스는 그 CLI 프로세스가 아니라 orca 자체가 "소유"한다 — 다른 터미널의 TUI나 headless 명령이 같은 서비스를 건드리지 않도록 실행 기록에 소유자(owner)를 남기고, 다른 세션이 소유한 서비스는 조회만 허용하고 종료는 막는다.
 
 ## 자원 예산
 

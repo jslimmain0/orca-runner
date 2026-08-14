@@ -195,16 +195,22 @@ export class Supervisor extends EventEmitter {
     }
   }
 
-  async startAll(): Promise<void> {
+  async startMany(names: string[]): Promise<void> {
     // 순차 시작: 동시 빌드로 CPU를 폭주시키지 않는다 (절약이 목적)
-    for (const [name, e] of this.entries) {
-      if (e.state.skipped) continue
+    for (const name of names) {
+      const e = this.entries.get(name)
+      if (!e || e.state.skipped) continue
       await this.start(name)
     }
-    const springDirs = new Set(
-      [...this.entries.values()].filter(e => e.state.def.kind === 'spring').map(e => e.state.def.dir),
-    )
-    for (const dir of springDirs) await gradleStop(dir)   // 스펙: 데몬 잔류 방지
+    const dirs = new Set(names
+      .map(n => this.entries.get(n)?.state.def)
+      .filter((d): d is NonNullable<typeof d> => !!d && d.kind === 'spring')
+      .map(d => d.dir))
+    for (const dir of dirs) await gradleStop(dir)   // 스펙: 데몬 잔류 방지
+  }
+
+  async startAll(): Promise<void> {
+    await this.startMany([...this.entries.keys()])
   }
 
   async stopAll(): Promise<{ stopped: string[]; unconfirmed: { name: string; pid: number }[] }> {

@@ -9,6 +9,7 @@ import { logViewLines, maxOffset } from './tui/logView.js'
 import { logPathFor } from './logs.js'
 import { findOrphans, activeSessions, killTree } from './procctl.js'
 import { portListening } from './health.js'
+import { readLastSession, writeLastSession, resumeSet, failedSet } from './session.js'
 import type { Config } from './types.js'
 
 export async function runApp(cfg: Config): Promise<void> {
@@ -41,6 +42,14 @@ export async function runApp(cfg: Config): Promise<void> {
   let confirmQuit = false
   stats.start()
 
+  // 지난 세션 재개 배너 — 이전 실행이 UP/STARTING/BUILDING이었던 서비스가 있으면 [u]로 재개 유도
+  const last = readLastSession()
+  const resume = resumeSet(last, cfg)
+  const failed = failedSet(last, cfg)
+  let banner = resume.length > 0
+    ? ` 지난 세션: ${resume.length}개 실행 중이었음 — [u] 재개${failed.length ? ` / 실패했던 서비스: ${failed.join(', ')} (l로 사유 확인)` : ''}`
+    : undefined
+
   const draw = () => {
     const states = sup.states()
     const width = process.stdout.columns || 100
@@ -48,6 +57,7 @@ export async function runApp(cfg: Config): Promise<void> {
       screen.render(dashboardLines(states, sampleSystem(), {
         sel, statsOn, width, color: process.stdout.isTTY === true && !process.env.NO_COLOR,
         helpOverride: confirmQuit ? ' ⚠ 빌드/기동 진행 중 — [q] 한 번 더 = 전체 종료, 다른 키 = 취소' : undefined,
+        banner,
       }))
     } else {
       const name = states[sel].def.name
@@ -86,6 +96,7 @@ export async function runApp(cfg: Config): Promise<void> {
     clearInterval(tick)
     stats.stop()
     screen.exit()
+    writeLastSession(sup.states().map(s => ({ name: s.def.name, status: s.status })))   // stopAll 직전 스냅샷 — 이후엔 전부 DOWN이라 의미 없음
     console.log('서비스를 정리하는 중...')
     const r = await sup.stopAll()
     if (r.unconfirmed.length === 0) console.log(`✔ 서비스 ${r.stopped.length}개 모두 종료 확인`)
@@ -136,6 +147,7 @@ export async function runApp(cfg: Config): Promise<void> {
         break
       }
       case 'a': void sup.startAll(); break
+      case 'u': if (banner) { banner = undefined; void sup.startMany(resume) } break
       case 'x': {
         const s3 = sup.states()[sel]
         if (s3.status !== 'UP' && s3.status !== 'STARTING' && s3.status !== 'BUILDING') sup.setSkip(s3.def.name, !s3.skipped)
@@ -153,6 +165,7 @@ export async function runApp(cfg: Config): Promise<void> {
         void quit(); return
       }
     }
+    if (k === 'a' || k === 's' || k === 'enter' || k === 'r') banner = undefined   // 시작 동작 후엔 재개 배너가 무의미
     draw()
   })
 }

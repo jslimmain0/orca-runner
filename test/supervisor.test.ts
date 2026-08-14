@@ -191,4 +191,10 @@ describe('supervisor', () => {
     expect(sup.states()[0].status).toBe('UP')
     expect(sup.states()[0].skipped).toBe(false)
   }, 30000)
+
+  it('startMany는 지정한 이름만 시작한다', async () => {
+    sup = new Supervisor(cfg(45881, 45882), { logDir: mkdtempSync(join(tmpdir(), 'orca-sv-')) })
+    await sup.startMany(['dummy-b'])
+    expect(sup.states().map(s => s.status)).toEqual(['DOWN', 'UP'])
+  }, 30000)
 })

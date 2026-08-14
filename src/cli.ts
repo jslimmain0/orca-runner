@@ -14,10 +14,11 @@ export function helpText(): string {
     '  orca                  대시보드 실행', '',
     '대시보드:',
     '  orca [그룹]           전체 또는 그룹만 표시',
-    '  키: [↑↓/1-9]선택 [s/Enter]시작/중지 [r]재시작 [a]전체 [x]제외 [l]로그 [m]수집 [q]종료', '',
+    '  키: [↑↓/1-9]선택 [s/Enter]시작/중지 [r]재시작 [a]전체 [x]제외 [l]로그 [m]수집 [q]종료',
+    '  지난 세션이 있으면 [u]로 재개 (배너가 뜰 때만)', '',
     '자동화·조회:',
     '  orca status [--json]  TUI 없이 상태 확인 (전부 UP=exit 0)',
-    '  orca up [그룹]        headless 일괄 시작',
+    '  orca up [그룹|--all]  headless 일괄 시작 (인자 없으면 지난 세션 재개, --all이면 전체)',
     '  orca down [그룹] --yes  headless 일괄 종료 (--yes 없으면 대상만 표시)',
     '  orca start|stop <이름>  개별 시작/종료',
     '  orca groups           그룹 목록',
@@ -53,7 +54,7 @@ async function main(): Promise<void> {
     const { runUp, runDown } = await import('./headless.js')
     const rest = process.argv.slice(3)
     const yes = rest.includes('--yes')
-    const group = rest.find(a => a !== '--yes')
+    const group = rest.find(a => a !== '--yes' && a !== '--all')
     try { arg === 'up' ? await runUp(group) : await runDown(group, yes) }
     catch (e) { if (e instanceof ConfigError) { console.error(e.message); process.exitCode = 1 } else throw e }
     return
