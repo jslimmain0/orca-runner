@@ -50,7 +50,7 @@ export class Supervisor extends EventEmitter {
   }
   /** ERROR/CRASHED 사유를 서비스 로그 마지막 줄에 남긴다 — "빨간 상태 → l" 루프의 연결고리 */
   private noteToLog(e: Entry, reason: string): void {
-    try { e.log?.stream().write(`[ORCA] ${new Date().toISOString()} ERROR: ${reason}\n`) } catch { /* 스트림 닫힘 */ }
+    try { e.log?.stream().write(`[ORCA] ${new Date().toISOString()} ERROR: ${reason}\n`) } catch { /* 동기 오류만 — 비동기 오류는 LogWriter의 error 가드가 흡수 */ }
   }
 
   async start(name: string): Promise<void> {

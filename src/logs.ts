@@ -24,6 +24,7 @@ export class LogWriter {
     const fd = openSync(file, 'a')
     closeSync(fd)
     this.ws = createWriteStream(file, { flags: 'a' })
+    this.ws.on('error', () => { /* 로그 기록은 best-effort — 어떤 스트림 오류도 러너를 죽이지 않는다 */ })
   }
   stream(): Writable { return this.ws }
   close(): void { this.ws.end() }

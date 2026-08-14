@@ -55,4 +55,13 @@ describe('logs', () => {
       expect(line).not.toContain('�')
     })
   })
+
+  it('닫힌 스트림에 write해도 프로세스가 죽지 않는다', async () => {
+    const file = join(dir(), 'e.log')
+    const w = new LogWriter(file)
+    w.close()
+    w.stream().write('after-end\n')            // 비동기 error 이벤트 유발
+    await new Promise(r => setTimeout(r, 100)) // 이벤트가 돌 시간 — 크래시 없이 통과해야 함
+    expect(true).toBe(true)
+  })
 })
