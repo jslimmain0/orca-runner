@@ -69,15 +69,21 @@ export class Supervisor extends EventEmitter {
     if (e.state.skipped) this.set(e, { skipped: false, skipPortUp: undefined })
     const def = e.state.def
     e.stopping = false
+    // headless(owner 0)로 띄운 프로세스는 orca CLI(부모)보다 오래 살아야 한다 — 그 프로세스의
+    // stdout/stderr는 LogWriter(파이프)로 부모에 붙이지 않고 spawnService의 detach 경로로 파일에
+    // 직접 리다이렉트한다(아래 참고). spring 빌드는 CLI 안에서 동기적으로 끝나므로 파이프로 로그를
+    // 받아도 안전 — LogWriter는 그 경우에만 만든다. headless+command는 LogWriter 자체를 생략한다
+    // (롤링 로그 없음 — noteToLog가 안전하게 no-op되고, 실패 사유는 state.error로 runUp이 출력한다).
+    const headless = this.owner === 0
     try {
-      e.log = new LogWriter(this.logFile(name))
+      if (!headless || def.kind === 'spring') e.log = new LogWriter(this.logFile(name))
       let command: string, args: string[]
       if (def.kind === 'spring') {
         const cache = loadCache()
         if (needsRebuild(def.dir, cache[name])) {
           this.set(e, { status: 'BUILDING', error: undefined, startedAt: Date.now() })
           try {
-            const jar = await buildJar(def, e.log.stream(), child => { e.buildChild = child })
+            const jar = await buildJar(def, e.log!.stream(), child => { e.buildChild = child })
             cache[name] = { builtAt: Date.now(), jar }
             saveCache(cache)
           } finally {
@@ -100,10 +106,11 @@ export class Supervisor extends EventEmitter {
         return
       }
 
-      const { pid, child } = await spawnService({
-        command, args, cwd: def.dir, priority: def.priority,
-        cpus: def.kind === 'command' && def.cpus > 0 ? def.cpus : undefined, out: e.log.stream(),
-      })
+      const cpus = def.kind === 'command' && def.cpus > 0 ? def.cpus : undefined
+      const { pid, child } = headless
+        ? await spawnService({ command, args, cwd: def.dir, priority: def.priority, cpus, detach: true, logFile: this.logFile(name) })
+        : await spawnService({ command, args, cwd: def.dir, priority: def.priority, cpus, out: e.log!.stream() })
+      if (headless) { e.log?.close(); e.log = undefined }   // 빌드용으로 잠깐 열었던 로그 — 이제부터는 자식이 파일에 직접 쓴다
       e.child = child
       recordStart(name, pid, this.runPath, this.owner)
       this.set(e, { status: 'STARTING', pid, error: undefined, startedAt: Date.now() })

@@ -1,7 +1,7 @@
 import { spawn, execFile, type ChildProcess } from 'node:child_process'
 import { promisify } from 'node:util'
 import os from 'node:os'
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, openSync, closeSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import type { Writable } from 'node:stream'
 import type { Priority } from './types.js'
@@ -18,26 +18,49 @@ const PRIO: Record<Priority, number> = {
 
 export async function spawnService(o: {
   command: string; args: string[]; cwd: string
-  priority: Priority; cpus?: number; out: Writable
+  priority: Priority; cpus?: number; out?: Writable
+  detach?: boolean; logFile?: string
 }): Promise<{ pid: number; child: ChildProcess }> {
   // cmd.exe로 위임하는 원문 명령줄(예: `cmd /c <run>`)은 Node의 기본 인자 자동-따옴표 처리가
   // 내장된 큰따옴표를 백슬래시로 이스케이프해 cmd가 이를 리터럴로 오인, 경로를 깨뜨린다.
   // command가 cmd일 때만 verbatim으로 넘겨 이미 올바르게 인용된 문자열을 그대로 전달한다.
   const windowsVerbatimArguments = o.command.toLowerCase() === 'cmd'
-  const child = spawn(o.command, o.args, { cwd: o.cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], windowsVerbatimArguments })
+  // detach: headless(owner 0)로 띄운 프로세스는 부모(orca CLI)보다 오래 살아야 한다. 'pipe'
+  // stdio는 자식이 살아있는 한 부모의 이벤트 루프를 붙잡아 CLI가 영원히 종료되지 않게 만들고,
+  // non-detached 자식은 콘솔 프로세스 그룹을 부모와 공유해 사용자가 멈춘 CLI를 Ctrl+C로 죽이면
+  // "남겨뒀어야 할" 서비스까지 함께 죽는다. 그래서 로그를 파이프가 아닌 파일 fd로 직접 리다이렉트
+  // (부모 쪽 스트림/핸들 없음)하고, 새 콘솔 프로세스 그룹으로 detached 시킨 뒤 unref()한다.
+  let fd: number | undefined
+  let child: ChildProcess
+  if (o.detach) {
+    mkdirSync(dirname(o.logFile!), { recursive: true })
+    fd = openSync(o.logFile!, 'a')
+    child = spawn(o.command, o.args, { cwd: o.cwd, windowsHide: true, detached: true, stdio: ['ignore', fd, fd], windowsVerbatimArguments })
+  } else {
+    child = spawn(o.command, o.args, { cwd: o.cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], windowsVerbatimArguments })
+  }
   try {
     await new Promise<void>((resolve, reject) => {
       child.once('spawn', resolve)
       child.once('error', reject)
     })
   } catch (err) {
+    if (fd !== undefined) closeSync(fd)
     throw new Error(`프로세스 시작 실패: ${o.command} — ${(err as Error).message}`)
   }
   // spawn 성공 이후 발생하는 비동기 'error' 이벤트가 프로세스 전체를 죽이지 않도록 가드
   child.on('error', () => { /* killTree 등에서 별도로 처리 */ })
-  if (child.pid === undefined) throw new Error(`프로세스 시작 실패: ${o.command}`)
-  child.stdout!.pipe(o.out, { end: false })
-  child.stderr!.pipe(o.out, { end: false })
+  if (child.pid === undefined) {
+    if (fd !== undefined) closeSync(fd)
+    throw new Error(`프로세스 시작 실패: ${o.command}`)
+  }
+  if (o.detach) {
+    closeSync(fd!)   // 자식이 핸들 복제본을 가짐 — 부모 쪽은 닫아도 안전
+    child.unref()    // 자식이 부모 이벤트 루프를 붙잡지 않게
+  } else {
+    child.stdout!.pipe(o.out!, { end: false })
+    child.stderr!.pipe(o.out!, { end: false })
+  }
   try { os.setPriority(child.pid, PRIO[o.priority]) } catch { /* 이미 종료된 경우 */ }
   if (o.cpus && o.cpus > 0 && o.cpus < os.cpus().length) {
     const mask = (1 << o.cpus) - 1
