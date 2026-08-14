@@ -52,7 +52,7 @@ export function dashboardLines(states: ServiceState[], sys: SysSample, opts: Das
     const cur = i === opts.sel ? '>' : ' '
     const name = s.def.name.padEnd(16).slice(0, 16)
     const port = String(s.def.port).padStart(5)
-    const status = statusCell(s, now).padEnd(17)
+    const status = statusCell(s, now).padEnd(19)
     const mem = opts.statsOn ? fmtBytes(s.rssBytes).padStart(8) : ''
     const cpu = opts.statsOn && s.cpuPercent !== undefined ? (s.cpuPercent.toFixed(0) + '%').padStart(5) : ''
     const note = s.error ? '  ' + s.error : (s.status === 'BUILDING' ? '  (빌드는 수 분 걸릴 수 있음)' : '')

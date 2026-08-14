@@ -81,4 +81,12 @@ describe('dashboard v2', () => {
     expect(mk('ERROR')).toContain('!')
     expect(mk('STARTING')).toContain('▲')
   })
+  it('상태 셀이 길어도 컬럼 정렬이 유지된다', () => {
+    const a = st({ name: 'a', status: 'UP', rssBytes: 100 * 1024 ** 2 })
+    const b = st({ name: 'b', status: 'STARTING', startedAt: 0, rssBytes: 100 * 1024 ** 2, port: 8081 })
+    const lines = dashboardLines([a, b], SYS, { sel: 0, statsOn: true, now: 119_000, color: false })
+    const memIdx = (l: string) => l.indexOf('100MB')
+    expect(lines[3]).toContain('STARTING 119s/120s')
+    expect(memIdx(lines[2])).toBe(memIdx(lines[3]))   // 같은 컬럼에서 시작해야 함
+  })
 })
