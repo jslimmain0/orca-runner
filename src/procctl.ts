@@ -47,8 +47,14 @@ export async function spawnService(o: {
   return { pid: child.pid, child }
 }
 
-export async function killTree(pid: number): Promise<void> {
-  try { await run('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true }) } catch { /* 이미 종료 */ }
+/** true = 트리 종료 확인(성공 또는 이미 죽음), false = 진짜 실패(권한 등) */
+export async function killTree(pid: number): Promise<boolean> {
+  try { await run('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true }); return true }
+  catch (err) {
+    const code = (err as { code?: number }).code
+    if (code === 128) return true          // ERROR_WAIT_NO_CHILDREN: 프로세스 없음 = 이미 죽음
+    return !isAlive(pid)                   // 그 외 오류라도 실제로 죽었으면 확인된 것
+  }
 }
 
 export function isAlive(pid: number): boolean {

@@ -4,7 +4,7 @@ import type { ChildProcess } from 'node:child_process'
 import type { Config, ServiceDef, ServiceState, ServiceStatus } from './types.js'
 import { whoHoldsPort } from './ports.js'
 import { loadCache, saveCache, needsRebuild } from './buildCache.js'
-import { spawnService, killTree, recordStart, recordStop } from './procctl.js'
+import { spawnService, killTree, recordStart, recordStop, isAlive } from './procctl.js'
 import { LogWriter, logPathFor } from './logs.js'
 import { httpProbe, portListening } from './health.js'
 import { buildJar, findBootJar, javaArgs, gradleStop } from './spring.js'
@@ -167,12 +167,23 @@ export class Supervisor extends EventEmitter {
     for (const dir of springDirs) await gradleStop(dir)   // 스펙: 데몬 잔류 방지
   }
 
-  async stopAll(): Promise<void> {
-    await Promise.all([...this.entries.keys()].map(n => this.stop(n)))
-    // exit 이벤트가 DOWN으로 바꿀 때까지 잠깐 대기
+  async stopAll(): Promise<{ stopped: string[]; unconfirmed: { name: string; pid: number }[] }> {
+    const targets = [...this.entries.entries()]
+      .filter(([, e]) => e.state.status !== 'DOWN' && (e.state.pid || e.buildChild?.pid))
+      .map(([n]) => n)
+    await Promise.all(targets.map(n => this.stop(n)))
     const deadline = Date.now() + 5000
     while (Date.now() < deadline && [...this.entries.values()].some(e => e.stopping && e.state.status !== 'DOWN')) {
       await new Promise(r => setTimeout(r, 100))
     }
+    const stopped: string[] = []
+    const unconfirmed: { name: string; pid: number }[] = []
+    for (const n of targets) {
+      const e = this.entries.get(n)!
+      if (e.state.status === 'DOWN') stopped.push(n)
+      else if (e.state.pid && isAlive(e.state.pid)) unconfirmed.push({ name: n, pid: e.state.pid })
+      else stopped.push(n)   // pid 없거나 이미 죽음 = 확인
+    }
+    return { stopped, unconfirmed }
   }
 }

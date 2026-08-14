@@ -149,6 +149,14 @@ describe('supervisor', () => {
     blocker.close()
   }, 15000)
 
+  it('stopAll이 종료 확인 결과를 반환한다', async () => {
+    sup = new Supervisor(cfg(45841, 45842), { logDir: mkdtempSync(join(tmpdir(), 'orca-sv-')) })
+    await sup.startAll()
+    const r = await sup.stopAll()
+    expect(r.stopped.sort()).toEqual(['dummy-a', 'dummy-b'])
+    expect(r.unconfirmed).toEqual([])
+  }, 30000)
+
   it('CRASHED 시 종료 코드/시그널이 error 필드와 로그에 남는다', async () => {
     const logDir = mkdtempSync(join(tmpdir(), 'orca-sv-'))
     sup = new Supervisor(cfg(45835, 45836), { logDir })

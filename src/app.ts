@@ -29,6 +29,7 @@ export async function runApp(cfg: Config): Promise<void> {
   let sel = 0
   let view: 'dash' | 'log' = 'dash'
   let logOffset = 0
+  let confirmQuit = false
   stats.start()
 
   const draw = () => {
@@ -37,6 +38,7 @@ export async function runApp(cfg: Config): Promise<void> {
     if (view === 'dash') {
       screen.render(dashboardLines(states, sampleSystem(), {
         sel, statsOn, width, color: process.stdout.isTTY === true && !process.env.NO_COLOR,
+        helpOverride: confirmQuit ? ' ⚠ 빌드/기동 진행 중 — [q] 한 번 더 = 전체 종료, 다른 키 = 취소' : undefined,
       }))
     } else {
       const name = states[sel].def.name
@@ -66,9 +68,12 @@ export async function runApp(cfg: Config): Promise<void> {
     stats.stop()
     screen.exit()
     console.log('서비스를 정리하는 중...')
-    await sup.stopAll()
+    const r = await sup.stopAll()
+    if (r.unconfirmed.length === 0) console.log(`✔ 서비스 ${r.stopped.length}개 모두 종료 확인`)
+    else for (const u of r.unconfirmed) console.log(`⚠ 종료 미확인: ${u.name} (PID ${u.pid}) — 다음 orca 실행 시 고아 정리를 이용하세요`)
     process.exit(0)
   }
+  // 외부 신호는 강제 종료 의사로 간주 — 2단계 확인을 의도적으로 생략한다 (협의회 P0-1 결정)
   process.on('SIGINT', () => { void quit() })
 
   screen.enter()
@@ -77,13 +82,13 @@ export async function runApp(cfg: Config): Promise<void> {
     const k = parseKey(b)
     const n = sup.states().length
     if (view === 'log') {
-      if (k === 'esc' || k === 'l') { view = 'dash'; screen.reset() }
+      if (k === 'esc' || k === 'l' || k === 'q') { view = 'dash'; screen.reset() }
       else if (k === 'up') logOffset++
       else if (k === 'down') logOffset = Math.max(0, logOffset - 1)
-      else if (k === 'q') { void quit(); return }
       draw()
       return
     }
+    if (confirmQuit && k !== 'q') { confirmQuit = false; draw(); return }
     switch (k) {
       case 'up': sel = (sel + n - 1) % n; break
       case 'down': sel = (sel + 1) % n; break
@@ -100,7 +105,11 @@ export async function runApp(cfg: Config): Promise<void> {
         if (statsOn) stats.start(); else stats.stop()
         for (const s of sup.states()) { s.cpuPercent = undefined; s.rssBytes = undefined }
         break
-      case 'q': void quit(); return
+      case 'q': {
+        const busy = sup.states().some(s => s.status === 'BUILDING' || s.status === 'STARTING')
+        if (busy && !confirmQuit) { confirmQuit = true; break }
+        void quit(); return
+      }
     }
     draw()
   })

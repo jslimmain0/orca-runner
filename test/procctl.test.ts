@@ -46,6 +46,17 @@ describe('procctl', () => {
     })).rejects.toThrow('this-command-does-not-exist-xyz')
   })
 
+  it('killTree: 살아있는 프로세스는 true, 이미 죽은 pid도 true', async () => {
+    const { pid } = await spawnService({
+      command: process.execPath, args: ['-e', 'setInterval(()=>{},1000)'],
+      cwd: process.cwd(), priority: 'normal', out: new PassThrough(),
+    })
+    expect(await killTree(pid)).toBe(true)      // 실제 종료
+    await sleep(300)
+    expect(await killTree(pid)).toBe(true)      // 이미 죽음 = 확인된 것
+    expect(await killTree(4000000)).toBe(true)  // 존재한 적 없음 = 이미 죽음 취급
+  }, 15000)
+
   it('run.json에 시작/중지를 기록하고 고아를 찾는다', () => {
     const file = join(mkdtempSync(join(tmpdir(), 'orca-run-')), 'run.json')
     recordStart('svc-a', process.pid, file)      // 살아있는 pid
