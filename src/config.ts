@@ -50,6 +50,7 @@ export function loadConfigFromString(src: string, path = '(inline)'): Config {
   const services: ServiceDef[] = []
   for (const [name, s] of Object.entries(rawServices)) {
     const at = ['services', name]
+    if (!/^[A-Za-z0-9._-]+$/.test(name)) fail(at, `잘못된 서비스 이름: '${name}' (영문/숫자/._- 만 허용)`)
     if (!KINDS.includes(s.kind as Kind)) fail(at, `${name}: kind는 spring|command 여야 합니다 (현재: ${s.kind})`)
     if (typeof s.dir !== 'string' || !/^[A-Za-z]:\\/.test(s.dir)) fail(at, `${name}: dir는 절대 경로여야 합니다`)
     const port = s.port

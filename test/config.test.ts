@@ -69,4 +69,9 @@ describe('config', () => {
       expect(msg).toMatch(/services/)
     }
   })
+
+  it('잘못된 서비스 키 이름은 줄 번호와 함께 거부한다', () => {
+    const bad = `services:\n  "bad name":\n    kind: command\n    dir: C:\\x\n    run: r\n    port: 1\n`
+    expect(() => loadConfigFromString(bad, 'C:\\cfg.yaml')).toThrowError(/서비스 이름|이름/)
+  })
 })

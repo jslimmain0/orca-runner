@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { appendService } from '../src/add.js'
+import { appendService, validateName, validatePort, resolveGroup } from '../src/add.js'
 import { loadConfigFromString } from '../src/config.js'
 
 describe('appendService', () => {
@@ -47,5 +47,28 @@ describe('appendService', () => {
     const out = appendService('services: null\n', { name: 'eis', kind: 'spring', dir: 'C:\\eis', port: 8081 })
     const cfg = loadConfigFromString(out)
     expect(cfg.services[0].name).toBe('eis')
+  })
+})
+
+describe('add validators', () => {
+  it('validateName: 형식/중복', () => {
+    expect(validateName('eis', [])).toBeNull()
+    expect(validateName('', [])).toMatch(/잘못된 서비스 이름/)
+    expect(validateName('bad name', [])).toMatch(/잘못된 서비스 이름/)
+    expect(validateName('eis', ['eis'])).toMatch(/이미 등록/)
+  })
+  it('validatePort: 범위/중복에 점유 서비스명 명시', () => {
+    const cfg = { services: [{ name: 'eis-server', port: 8081 }] }
+    expect(validatePort('8082', cfg)).toEqual({ ok: true, port: 8082 })
+    expect(validatePort('abc', cfg)).toMatchObject({ ok: false })
+    expect(validatePort('0', cfg)).toMatchObject({ ok: false })
+    const dup = validatePort('8081', cfg)
+    expect(dup.ok).toBe(false)
+    if (!dup.ok) expect(dup.msg).toContain('eis-server')
+  })
+  it('resolveGroup: trim과 대소문자 통일 확인', () => {
+    expect(resolveGroup(' tspay ', ['tspay'])).toEqual({ value: 'tspay' })
+    expect(resolveGroup('Tspay', ['tspay'])).toEqual({ value: 'Tspay', needsConfirm: 'tspay' })
+    expect(resolveGroup('infra', ['tspay'])).toEqual({ value: 'infra' })
   })
 })
