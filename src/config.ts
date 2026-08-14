@@ -61,6 +61,15 @@ export function loadConfigFromString(src: string, path = '(inline)'): Config {
     if (s.priority !== undefined && !PRIORITIES.includes(s.priority as Priority)) {
       fail(at, `${name}: priority는 normal|belowNormal|idle 중 하나여야 합니다`)
     }
+    const posInt = (v: unknown): boolean => typeof v === 'number' && Number.isInteger(v) && v >= 0
+    if (s.heapMb !== undefined && !posInt(s.heapMb)) fail(at, `${name}: heapMb는 0 이상의 정수여야 합니다`)
+    if (s.cpus !== undefined && !posInt(s.cpus)) fail(at, `${name}: cpus는 0 이상의 정수여야 합니다`)
+    if (s.jvmArgs !== undefined && (!Array.isArray(s.jvmArgs) || s.jvmArgs.some(a => typeof a !== 'string'))) {
+      fail(at, `${name}: jvmArgs는 문자열 배열이어야 합니다 (예: jvmArgs: ["-Dspring.profiles.active=local"])`)
+    }
+    for (const f of ['health', 'run', 'group', 'module'] as const) {
+      if (s[f] !== undefined && typeof s[f] !== 'string') fail(at, `${name}: ${f}은(는) 문자열이어야 합니다`)
+    }
     // command 서비스는 cpus 기본값이 0 — affinity는 명시적으로 설정한 경우에만 적용 (opt-in)
     const base = s.kind === 'spring' ? springDefaults : { heapMb: 0, cpus: 0, priority: BUILTIN.priority }
     services.push({

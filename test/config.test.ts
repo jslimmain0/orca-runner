@@ -74,4 +74,19 @@ describe('config', () => {
     const bad = `services:\n  "bad name":\n    kind: command\n    dir: C:\\x\n    run: r\n    port: 1\n`
     expect(() => loadConfigFromString(bad, 'C:\\cfg.yaml')).toThrowError(/서비스 이름|이름/)
   })
+
+  it('heapMb가 숫자가 아니면 에러', () => {
+    const bad = `services:\n  a:\n    kind: spring\n    dir: C:\\x\n    port: 1\n    heapMb: many\n`
+    expect(() => loadConfigFromString(bad)).toThrowError(/heapMb/)
+  })
+
+  it('jvmArgs가 배열이 아니면 에러', () => {
+    const bad = `services:\n  a:\n    kind: spring\n    dir: C:\\x\n    port: 1\n    jvmArgs: -Dfoo\n`
+    expect(() => loadConfigFromString(bad)).toThrowError(/jvmArgs/)
+  })
+
+  it('cpus가 음수면 에러', () => {
+    const bad = `services:\n  a:\n    kind: command\n    dir: C:\\x\n    run: r\n    port: 1\n    cpus: -2\n`
+    expect(() => loadConfigFromString(bad)).toThrowError(/cpus/)
+  })
 })
