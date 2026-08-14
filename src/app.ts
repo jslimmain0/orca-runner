@@ -5,7 +5,7 @@ import { sampleSystem } from './sysinfo.js'
 import { Screen } from './tui/screen.js'
 import { parseKey } from './tui/keys.js'
 import { dashboardLines } from './tui/dashboard.js'
-import { logViewLines } from './tui/logView.js'
+import { logViewLines, maxOffset } from './tui/logView.js'
 import { logPathFor } from './logs.js'
 import { findOrphans, activeSessions, killTree } from './procctl.js'
 import type { Config } from './types.js'
@@ -95,7 +95,10 @@ export async function runApp(cfg: Config): Promise<void> {
     const n = sup.states().length
     if (view === 'log') {
       if (k === 'esc' || k === 'l' || k === 'q') { view = 'dash'; screen.reset() }
-      else if (k === 'up') logOffset++
+      else if (k === 'up') {
+        const name = sup.states()[sel].def.name
+        logOffset = Math.min(logOffset + 1, maxOffset(logPathFor(name), process.stdout.rows || 30))
+      }
       else if (k === 'down') logOffset = Math.max(0, logOffset - 1)
       draw()
       return
