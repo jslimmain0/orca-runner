@@ -8,6 +8,7 @@ import { dashboardLines } from './tui/dashboard.js'
 import { logViewLines, maxOffset } from './tui/logView.js'
 import { logPathFor } from './logs.js'
 import { findOrphans, activeSessions, killTree } from './procctl.js'
+import { portListening } from './health.js'
 import type { Config } from './types.js'
 
 export async function runApp(cfg: Config): Promise<void> {
@@ -64,6 +65,9 @@ export async function runApp(cfg: Config): Promise<void> {
         s.cpuPercent = st?.cpuPercent
         s.rssBytes = st?.rssBytes
       }
+    }
+    for (const s of sup.states()) {
+      if (s.skipped) s.skipPortUp = await portListening(s.def.port)   // 기존 3초 tick에 편승 (새 타이머 금지)
     }
     draw()
   }, 3000)
@@ -125,6 +129,11 @@ export async function runApp(cfg: Config): Promise<void> {
         break
       }
       case 'a': void sup.startAll(); break
+      case 'x': {
+        const s3 = sup.states()[sel]
+        if (s3.status !== 'UP' && s3.status !== 'STARTING' && s3.status !== 'BUILDING') sup.setSkip(s3.def.name, !s3.skipped)
+        break
+      }
       case 'l': view = 'log'; logOffset = 0; screen.reset(); break
       case 'm':
         statsOn = !statsOn

@@ -14,7 +14,7 @@ export function helpText(): string {
     '  orca                  대시보드 실행', '',
     '대시보드:',
     '  orca [그룹]           전체 또는 그룹만 표시',
-    '  키: [↑↓/1-9]선택 [s/Enter]시작/중지 [r]재시작 [a]전체 [l]로그 [m]수집 [q]종료', '',
+    '  키: [↑↓/1-9]선택 [s/Enter]시작/중지 [r]재시작 [a]전체 [x]제외 [l]로그 [m]수집 [q]종료', '',
     '자동화·조회:',
     '  orca status [--json]  TUI 없이 상태 확인 (전부 UP=exit 0)',
     '  orca up [그룹]        headless 일괄 시작',

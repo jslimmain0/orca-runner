@@ -52,14 +52,19 @@ export function dashboardLines(states: ServiceState[], sys: SysSample, opts: Das
     const cur = i === opts.sel ? '>' : ' '
     const name = s.def.name.padEnd(16).slice(0, 16)
     const port = String(s.def.port).padStart(5)
-    const status = statusCell(s, now).padEnd(19)
+    const isSkip = s.skipped === true && (s.status === 'DOWN' || s.status === 'CRASHED' || s.status === 'ERROR')
+    const icon = isSkip ? '◇' : (ICON[s.status] ?? '?')
+    const statusText = isSkip ? (s.skipPortUp === false ? 'SKIP(!)' : 'SKIP(IDE)') : statusCell(s, now)
+    const status = statusText.padEnd(19)
     const mem = opts.statsOn ? fmtBytes(s.rssBytes).padStart(8) : ''
     const cpu = opts.statsOn && s.cpuPercent !== undefined ? (s.cpuPercent.toFixed(0) + '%').padStart(5) : ''
-    const note = s.error ? '  ' + s.error : (s.status === 'BUILDING' ? '  (빌드는 수 분 걸릴 수 있음)' : '')
+    const note = isSkip && s.skipPortUp === false ? '  ⚠ 포트 응답 없음 (IDE에서 내려간 듯)'
+      : s.error ? '  ' + s.error
+      : (s.status === 'BUILDING' ? '  (빌드는 수 분 걸릴 수 있음)' : '')
     const num = i < 9 ? String(i + 1) : ' '
-    const plain = truncateRow(`${cur}${num} ${ICON[s.status] ?? '?'} ${name} :${port} ${status}${mem}${cpu}${note}`, width)
+    const plain = truncateRow(`${cur}${num} ${icon} ${name} :${port} ${status}${mem}${cpu}${note}`, width)
     return colorizeRow(plain, s.status, color)
   })
-  const help = opts.helpOverride ?? ' [↑↓/1-9]선택 [s/Enter]시작/중지 [r]재시작 [a]전체 [l]로그 [m]수집 [q]종료'
+  const help = opts.helpOverride ?? ' [↑↓/1-9]선택 [s/Enter]시작/중지 [r]재시작 [a]전체 [x]제외 [l]로그 [m]수집 [q]종료'
   return [head, sep, ...rows, sep, help]
 }

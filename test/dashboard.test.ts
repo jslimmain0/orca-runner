@@ -97,4 +97,15 @@ describe('dashboard v2', () => {
     expect(lines[3]).toMatch(/^ 2 /)
     expect(lines[11]).toMatch(/^ {2}○|^ {2}/)   // 10번째: 번호 없음
   })
+
+  it('SKIP 상태 표시와 포트 비어있음 승격', () => {
+    const skipped = st({ status: 'DOWN' }); skipped.skipped = true
+    let lines = dashboardLines([skipped], SYS, { sel: 0, statsOn: false, color: false })
+    expect(lines[2]).toContain('◇')
+    expect(lines[2]).toContain('SKIP(IDE)')
+    skipped.skipPortUp = false
+    lines = dashboardLines([skipped], SYS, { sel: 0, statsOn: false, color: false })
+    expect(lines[2]).toContain('SKIP(!)')
+    expect(lines[2]).toContain('포트 응답 없음')
+  })
 })

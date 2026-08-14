@@ -53,9 +53,16 @@ export class Supervisor extends EventEmitter {
     try { e.log?.stream().write(`[ORCA] ${new Date().toISOString()} ERROR: ${reason}\n`) } catch { /* 동기 오류만 — 비동기 오류는 LogWriter의 error 가드가 흡수 */ }
   }
 
+  setSkip(name: string, v: boolean): void {
+    const e = this.entries.get(name)
+    if (!e) return
+    this.set(e, { skipped: v, skipPortUp: undefined })
+  }
+
   async start(name: string): Promise<void> {
     const e = this.entries.get(name)
     if (!e || e.state.status === 'UP' || e.state.status === 'STARTING' || e.state.status === 'BUILDING') return
+    if (e.state.skipped) this.set(e, { skipped: false, skipPortUp: undefined })
     const def = e.state.def
     e.stopping = false
     try {
@@ -179,7 +186,10 @@ export class Supervisor extends EventEmitter {
 
   async startAll(): Promise<void> {
     // 순차 시작: 동시 빌드로 CPU를 폭주시키지 않는다 (절약이 목적)
-    for (const name of this.entries.keys()) await this.start(name)
+    for (const [name, e] of this.entries) {
+      if (e.state.skipped) continue
+      await this.start(name)
+    }
     const springDirs = new Set(
       [...this.entries.values()].filter(e => e.state.def.kind === 'spring').map(e => e.state.def.dir),
     )

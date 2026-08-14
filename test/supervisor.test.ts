@@ -180,4 +180,15 @@ describe('supervisor', () => {
     expect(sup.states()[0].status).toBe('UP')
     expect(sup.pids().get('dummy-a')).not.toBe(oldPid)
   }, 30000)
+
+  it('setSkip된 서비스는 startAll에서 건너뛰고, 개별 start는 skip을 해제하고 진행한다', async () => {
+    sup = new Supervisor(cfg(45861, 45862), { logDir: mkdtempSync(join(tmpdir(), 'orca-sv-')) })
+    sup.setSkip('dummy-a', true)
+    await sup.startAll()
+    expect(sup.states().map(s => s.status)).toEqual(['DOWN', 'UP'])   // a는 건너뜀
+    expect(sup.states()[0].skipped).toBe(true)
+    await sup.start('dummy-a')                                        // 개별 시작 = 해제 + 시작
+    expect(sup.states()[0].status).toBe('UP')
+    expect(sup.states()[0].skipped).toBe(false)
+  }, 30000)
 })
