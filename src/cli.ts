@@ -92,7 +92,7 @@ async function main(): Promise<void> {
       process.exitCode = 1
       return
     }
-    await runApp({ services })
+    await runApp({ services }, { group })
   } catch (e) {
     if (e instanceof ConfigError) { console.error(e.message); process.exitCode = 1; return }
     throw e

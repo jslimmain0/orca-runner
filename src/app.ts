@@ -10,9 +10,10 @@ import { logPathFor } from './logs.js'
 import { findOrphans, activeSessions, killTree } from './procctl.js'
 import { portListening } from './health.js'
 import { readLastSession, writeLastSession, resumeSet, failedSet } from './session.js'
+import { watchConfig } from './configWatcher.js'
 import type { Config } from './types.js'
 
-export async function runApp(cfg: Config): Promise<void> {
+export async function runApp(cfg: Config, opts?: { group?: string }): Promise<void> {
   // 다른 터미널이 이미 관리 중인 서비스는 정리 대상에서 제외하고 안내만 한다
   const sessions = activeSessions()
   if (sessions.length > 0) {
@@ -44,6 +45,8 @@ export async function runApp(cfg: Config): Promise<void> {
   let view: 'dash' | 'log' = 'dash'
   let logOffset = 0
   let confirmQuit = false
+  let notice: string | undefined
+  let noticeExpiry = 0   // Infinity = 스티키(다음 성공 리로드가 덮을 때까지 유지)
   stats.start()
 
   // 지난 세션 재개 배너 — 이전 실행이 UP/STARTING/BUILDING이었던 서비스가 있으면 [u]로 재개 유도
@@ -66,7 +69,7 @@ export async function runApp(cfg: Config): Promise<void> {
       screen.render(dashboardLines(states, sampleSystem(), {
         sel, statsOn, width, color: process.stdout.isTTY === true && !process.env.NO_COLOR,
         helpOverride: confirmQuit ? ' ⚠ 빌드/기동 진행 중 — [q] 한 번 더 = 전체 종료, 다른 키 = 취소' : undefined,
-        banner,
+        banner, notice,
       }))
     } else {
       const name = states[sel].def.name
@@ -75,6 +78,28 @@ export async function runApp(cfg: Config): Promise<void> {
   }
 
   sup.on('change', draw)
+
+  // services.yaml 핫로드: 다른 터미널의 orca add/remove·직접 편집을 감지해 반영한다
+  const stopWatch = watchConfig(
+    full => {
+      const services = opts?.group ? full.services.filter(s => s.group === opts.group) : full.services
+      if (services.length === 0) {
+        notice = ` ⚠ 리로드 결과 서비스가 없어 기존 설정을 유지합니다`
+        noticeExpiry = Date.now() + 8000
+        draw(); return
+      }
+      const r = sup.applyConfig({ services })
+      sel = Math.min(sel, Math.max(0, sup.states().length - 1))
+      notice = ` 설정 반영: +${r.added.length} 추가, ${r.changed.length} 변경, ${r.removed.length + r.deferredRemoved.length} 제거`
+      noticeExpiry = Date.now() + 5000
+      draw()
+    },
+    msg => {
+      notice = ` ⚠ services.yaml 오류 — 기존 설정 유지: ${msg.split('\n')[0]}`
+      noticeExpiry = Infinity   // 스티키 — 다음 성공 리로드가 덮는다
+      draw()
+    },
+  )
 
   let ticking = false
   const tick = setInterval(async () => {          // 3초 배치 샘플 — 유일한 주기 작업
@@ -92,6 +117,7 @@ export async function runApp(cfg: Config): Promise<void> {
       await Promise.all(sup.states().filter(s => s.skipped).map(async s => {
         s.skipPortUp = await portListening(s.def.port)   // 기존 3초 tick에 편승, 병렬이라 최악 +1s로 상한
       }))
+      if (notice && Date.now() > noticeExpiry) { notice = undefined }   // 새 타이머 없이 3초 tick에 편승해 해제
       draw()
     } finally {
       ticking = false
@@ -103,6 +129,7 @@ export async function runApp(cfg: Config): Promise<void> {
     if (quitting) return
     quitting = true
     clearInterval(tick)
+    stopWatch()
     stats.stop()
     screen.exit()
     writeLastSession(sup.states().map(s => ({ name: s.def.name, status: s.status })))   // stopAll 직전 스냅샷 — 이후엔 전부 DOWN이라 의미 없음

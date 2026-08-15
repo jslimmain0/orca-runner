@@ -108,4 +108,17 @@ describe('dashboard v2', () => {
     expect(lines[2]).toContain('SKIP(!)')
     expect(lines[2]).toContain('포트 응답 없음')
   })
+
+  it('notice 줄과 배너가 공존한다', () => {
+    const lines = dashboardLines([st({ status: 'DOWN' })], SYS,
+      { sel: 0, statsOn: false, color: false, banner: ' 배너', notice: ' 공지' })
+    expect(lines[1]).toBe(' 배너')
+    expect(lines[2]).toBe(' 공지')
+  })
+  it('removedFromConfig/configChanged 행 노트', () => {
+    const rm = st({ status: 'UP' }); rm.removedFromConfig = true
+    expect(dashboardLines([rm], SYS, { sel: 0, statsOn: false, color: false })[2]).toContain('설정에서 삭제됨')
+    const ch = st({ status: 'UP' }); ch.configChanged = true
+    expect(dashboardLines([ch], SYS, { sel: 0, statsOn: false, color: false })[2]).toContain('r로 반영')
+  })
 })
