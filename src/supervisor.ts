@@ -18,6 +18,7 @@ interface Entry {
   buildChild?: ChildProcess
   log?: LogWriter
   stopping: boolean
+  starting?: boolean   // start() 진행 중(첫 상태 전이 전 포함) — UI 노출 불필요, applyConfig 활성 판정 전용
 }
 
 export class Supervisor extends EventEmitter {
@@ -64,7 +65,10 @@ export class Supervisor extends EventEmitter {
   }
 
   private isActive(e: Entry): boolean {
-    return e.state.pid !== undefined || e.buildChild !== undefined ||
+    // e.starting: start()가 whoHoldsPort/spawnService await 중(첫 상태 전이 STARTING 이전)인 창에서는
+    // pid도 없고 status도 여전히 DOWN이라 — 그 창에서 applyConfig가 활성으로 못 보고 즉시 제거해
+    // 맵에서 사라진 채 spawn이 이어지는 고아 프로세스를 막는다.
+    return e.state.pid !== undefined || e.buildChild !== undefined || e.starting === true ||
       e.state.status === 'UP' || e.state.status === 'STARTING' || e.state.status === 'BUILDING'
   }
 
@@ -79,7 +83,7 @@ export class Supervisor extends EventEmitter {
         added.push(def.name)
         continue
       }
-      const defChanged = JSON.stringify(e.state.def) !== JSON.stringify(def)
+      const defChanged = JSON.stringify(e.state.def) !== JSON.stringify(def)   // config.ts가 항상 같은 필드 순서로 ServiceDef를 만든다는 데 의존 — 순서가 달라지면 오탐 가능
       e.state.def = def                                   // 다음 시작부터 적용
       if (defChanged) {
         changed.push(def.name)
@@ -107,6 +111,7 @@ export class Supervisor extends EventEmitter {
     const e = this.entries.get(name)
     if (!e || e.state.status === 'UP' || e.state.status === 'STARTING' || e.state.status === 'BUILDING') return
     if (e.state.removedFromConfig) return
+    e.starting = true   // 첫 상태 전이(STARTING) 전 await 창에서 applyConfig가 이 엔트리를 고아로 드롭하지 않도록 — finally에서 해제
     if (e.state.skipped) this.set(e, { skipped: false, skipPortUp: undefined })
     if (e.state.configChanged) this.set(e, { configChanged: undefined })
     const def = e.state.def
@@ -208,6 +213,8 @@ export class Supervisor extends EventEmitter {
       e.log?.close()
       if (e.stopping) { this.set(e, { status: 'DOWN', pid: undefined, startedAt: undefined }); return }
       this.set(e, { status: 'ERROR', error: (err as Error).message, startedAt: undefined })
+    } finally {
+      e.starting = false
     }
   }
 

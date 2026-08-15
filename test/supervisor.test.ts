@@ -241,4 +241,19 @@ describe('supervisor', () => {
     expect(sup.states()[0].configChanged).toBeUndefined()
     expect(sup.states()[0].status).toBe('UP')
   }, 30000)
+
+  it('applyConfig가 시작 진행 중인 서비스를 고아로 만들지 않는다', async () => {
+    sup = new Supervisor(cfg(45911, 45912), { logDir: mkdtempSync(join(tmpdir(), 'orca-sv-')) })
+    const p = sup.start('dummy-a')                      // await 안 함 — 첫 await(whoHoldsPort) 창에 정지
+    const base = { kind: 'command' as const, dir: process.cwd(), heapMb: 0, cpus: 0, priority: 'normal' as const, jvmArgs: [] }
+    const r = sup.applyConfig({ services: [{ ...base, name: 'dummy-b', run: `node "${FIXTURE}" 45912`, port: 45912 }] })
+    expect(r.deferredRemoved).toEqual(['dummy-a'])      // 즉시 제거가 아니라 유예여야 함
+    await p
+    const a = sup.states().find(s => s.def.name === 'dummy-a')
+    expect(a?.status).toBe('UP')
+    expect(a?.removedFromConfig).toBe(true)
+    expect(sup.pids().has('dummy-a')).toBe(true)        // 추적 유지
+    await sup.stop('dummy-a')
+    expect(sup.states().find(s => s.def.name === 'dummy-a')).toBeUndefined()
+  }, 30000)
 })
