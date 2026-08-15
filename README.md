@@ -3,6 +3,9 @@
 Windows에서 로컬 개발 의존성 서비스들을 자원 아껴서 백그라운드로 띄우는 TUI 러너.
 직접 개발 중인 서비스는 IDE로 띄우고, 나머지 "떠 있기만 하면 되는" 것들을 orca에 맡긴다.
 
+> 📖 **[사용자 가이드](docs/user-guide.md)** — 설치부터 대시보드·자동화·핫로드·문제 해결까지.
+> 브라우저용은 [docs/user-guide.html](docs/user-guide.html)을 로컬에서 열면 된다.
+
 ## 설치
 
 ```powershell
