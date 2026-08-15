@@ -96,6 +96,8 @@ export async function runApp(cfg: Config, opts?: { group?: string }): Promise<vo
       if (totalChanges > 0) {
         notice = ` 설정 반영: +${r.added.length} 추가, ${r.changed.length} 변경, ${r.removed.length + r.deferredRemoved.length} 제거`
         noticeExpiry = Date.now() + 5000
+      } else if (noticeExpiry === Infinity) {
+        notice = undefined; noticeExpiry = 0   // 무변경이어도 성공 리로드는 스티키 오류를 걷는다 — 파일이 유효해졌다는 사실 자체가 정보
       }
       draw()
     },
