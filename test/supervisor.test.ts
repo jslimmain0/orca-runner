@@ -197,4 +197,48 @@ describe('supervisor', () => {
     await sup.startMany(['dummy-b'])
     expect(sup.states().map(s => s.status)).toEqual(['DOWN', 'UP'])
   }, 30000)
+
+  it('applyConfig: 추가/비활성 제거/순서 재정렬', () => {
+    sup = new Supervisor(cfg(45901, 45902), { logDir: mkdtempSync(join(tmpdir(), 'orca-sv-')) })
+    const base = { kind: 'command' as const, dir: process.cwd(), heapMb: 0, cpus: 0, priority: 'normal' as const, jvmArgs: [] }
+    const r = sup.applyConfig({ services: [
+      { ...base, name: 'dummy-b', run: 'x', port: 45902 },        // 순서 앞으로
+      { ...base, name: 'new-c', run: 'x', port: 45903 },          // 신규
+      // dummy-a 삭제 (비활성)
+    ] })
+    expect(r.added).toEqual(['new-c'])
+    expect(r.removed).toEqual(['dummy-a'])
+    expect(r.deferredRemoved).toEqual([])
+    expect(sup.states().map(s => s.def.name)).toEqual(['dummy-b', 'new-c'])
+    expect(sup.states()[1].status).toBe('DOWN')
+  })
+
+  it('applyConfig: 실행 중 서비스 삭제는 유예, 중지 시 목록에서 사라진다', async () => {
+    sup = new Supervisor(cfg(45905, 45906), { logDir: mkdtempSync(join(tmpdir(), 'orca-sv-')) })
+    await sup.start('dummy-a')
+    const base = { kind: 'command' as const, dir: process.cwd(), heapMb: 0, cpus: 0, priority: 'normal' as const, jvmArgs: [] }
+    const r = sup.applyConfig({ services: [{ ...base, name: 'dummy-b', run: `node "${FIXTURE}" 45906`, port: 45906 }] })
+    expect(r.deferredRemoved).toEqual(['dummy-a'])
+    const a = sup.states().find(s => s.def.name === 'dummy-a')!
+    expect(a.removedFromConfig).toBe(true)
+    expect(a.status).toBe('UP')
+    await sup.start('dummy-a')                        // 재시작 거부 — 상태 그대로 UP(새 spawn 없음)
+    expect(sup.states().filter(s => s.def.name === 'dummy-a')).toHaveLength(1)
+    await sup.stop('dummy-a')
+    expect(sup.states().find(s => s.def.name === 'dummy-a')).toBeUndefined()   // DOWN 도달 시 제거
+  }, 30000)
+
+  it('applyConfig: 실행 중 def 변경은 표시만, 재시작 시 해제·적용', async () => {
+    sup = new Supervisor(cfg(45907, 45908), { logDir: mkdtempSync(join(tmpdir(), 'orca-sv-')) })
+    await sup.start('dummy-a')
+    const cur = sup.states()[0].def
+    sup.applyConfig({ services: [ { ...cur, heapMb: 999 }, sup.states()[1].def ] })
+    expect(sup.states()[0].configChanged).toBe(true)
+    expect(sup.states()[0].def.heapMb).toBe(999)      // def는 즉시 교체 (다음 시작용)
+    expect(sup.states()[0].status).toBe('UP')          // 실행엔 영향 없음
+    await sup.stop('dummy-a')
+    await sup.start('dummy-a')
+    expect(sup.states()[0].configChanged).toBeUndefined()
+    expect(sup.states()[0].status).toBe('UP')
+  }, 30000)
 })

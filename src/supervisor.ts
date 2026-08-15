@@ -63,10 +63,52 @@ export class Supervisor extends EventEmitter {
     this.set(e, { skipped: v, skipPortUp: undefined })
   }
 
+  private isActive(e: Entry): boolean {
+    return e.state.pid !== undefined || e.buildChild !== undefined ||
+      e.state.status === 'UP' || e.state.status === 'STARTING' || e.state.status === 'BUILDING'
+  }
+
+  /** 핫로드 반영 규칙 (스펙 표 참조): 실행 중인 프로세스는 절대 건드리지 않고 표시/유예만 한다 */
+  applyConfig(cfg: Config): { added: string[]; removed: string[]; changed: string[]; deferredRemoved: string[] } {
+    const next = new Map<string, Entry>()
+    const added: string[] = [], removed: string[] = [], changed: string[] = [], deferredRemoved: string[] = []
+    for (const def of cfg.services) {
+      const e = this.entries.get(def.name)
+      if (!e) {
+        next.set(def.name, { state: { def, status: 'DOWN' }, stopping: false })
+        added.push(def.name)
+        continue
+      }
+      const defChanged = JSON.stringify(e.state.def) !== JSON.stringify(def)
+      e.state.def = def                                   // 다음 시작부터 적용
+      if (defChanged) {
+        changed.push(def.name)
+        if (this.isActive(e)) e.state.configChanged = true
+      }
+      e.state.removedFromConfig = undefined               // 복귀 처리
+      next.set(def.name, e)
+    }
+    for (const [name, e] of this.entries) {
+      if (next.has(name)) continue
+      if (this.isActive(e)) {
+        e.state.removedFromConfig = true                  // 실행 중 — 유예 (중지 시 제거)
+        next.set(name, e)
+        deferredRemoved.push(name)
+      } else {
+        removed.push(name)                                // CRASHED/ERROR 포함 비활성은 즉시 제거
+      }
+    }
+    this.entries = next
+    this.emit('change')
+    return { added, removed, changed, deferredRemoved }
+  }
+
   async start(name: string): Promise<void> {
     const e = this.entries.get(name)
     if (!e || e.state.status === 'UP' || e.state.status === 'STARTING' || e.state.status === 'BUILDING') return
+    if (e.state.removedFromConfig) return
     if (e.state.skipped) this.set(e, { skipped: false, skipPortUp: undefined })
+    if (e.state.configChanged) this.set(e, { configChanged: undefined })
     const def = e.state.def
     e.stopping = false
     // headless(owner 0)로 띄운 프로세스는 orca CLI(부모)보다 오래 살아야 한다 — 그 프로세스의
@@ -126,6 +168,12 @@ export class Supervisor extends EventEmitter {
         this.set(e, e.stopping
           ? { status: 'DOWN', pid: undefined, startedAt: undefined }
           : { status: 'CRASHED', pid: undefined, error: reason, startedAt: undefined })
+        if (e.stopping && e.state.removedFromConfig && this.entries.get(name) === e) {
+          // 설정에서 삭제된 서비스가 정지 완료 — 이제 목록에서 제거.
+          // CRASHED로 끝난 경우는 사유 표시를 위해 남긴다(비활성이므로 다음 applyConfig가 제거).
+          this.entries.delete(name)
+          this.emit('change')
+        }
       })
 
       // 함수 호출 경계로 TS의 상태 좁히기(narrowing)를 우회 — this.set()이 Object.assign으로
