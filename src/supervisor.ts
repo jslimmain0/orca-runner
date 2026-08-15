@@ -58,6 +58,14 @@ export class Supervisor extends EventEmitter {
     try { e.log?.stream().write(`[ORCA] ${new Date().toISOString()} ERROR: ${reason}\n`) } catch { /* 동기 오류만 — 비동기 오류는 LogWriter의 error 가드가 흡수 */ }
   }
 
+  /** 설정에서 삭제 유예된 엔트리가 DOWN에 도달하면 목록에서 걷는다 (스펙 표: DOWN 도달 시 제거) */
+  private reapIfRemoved(name: string, e: Entry): void {
+    if (e.state.removedFromConfig && e.state.status === 'DOWN' && this.entries.get(name) === e) {
+      this.entries.delete(name)
+      this.emit('change')
+    }
+  }
+
   setSkip(name: string, v: boolean): void {
     const e = this.entries.get(name)
     if (!e) return
@@ -111,6 +119,7 @@ export class Supervisor extends EventEmitter {
     const e = this.entries.get(name)
     if (!e || e.state.status === 'UP' || e.state.status === 'STARTING' || e.state.status === 'BUILDING') return
     if (e.state.removedFromConfig) return
+    if (e.starting) return   // 빠른 s 연타로 이 async 함수가 재진입해도 첫 호출의 spawn이 끝나기 전엔 이중 spawn하지 않는다
     e.starting = true   // 첫 상태 전이(STARTING) 전 await 창에서 applyConfig가 이 엔트리를 고아로 드롭하지 않도록 — finally에서 해제
     if (e.state.skipped) this.set(e, { skipped: false, skipPortUp: undefined })
     if (e.state.configChanged) this.set(e, { configChanged: undefined })
@@ -173,12 +182,9 @@ export class Supervisor extends EventEmitter {
         this.set(e, e.stopping
           ? { status: 'DOWN', pid: undefined, startedAt: undefined }
           : { status: 'CRASHED', pid: undefined, error: reason, startedAt: undefined })
-        if (e.stopping && e.state.removedFromConfig && this.entries.get(name) === e) {
-          // 설정에서 삭제된 서비스가 정지 완료 — 이제 목록에서 제거.
-          // CRASHED로 끝난 경우는 사유 표시를 위해 남긴다(비활성이므로 다음 applyConfig가 제거).
-          this.entries.delete(name)
-          this.emit('change')
-        }
+        // CRASHED로 끝난 경우는 사유 표시를 위해 남긴다(비활성이므로 다음 applyConfig가 제거) —
+        // reapIfRemoved는 status가 DOWN일 때만 걷으므로 그 규칙이 여기서도 그대로 적용된다.
+        this.reapIfRemoved(name, e)
       })
 
       // 함수 호출 경계로 TS의 상태 좁히기(narrowing)를 우회 — this.set()이 Object.assign으로
@@ -211,7 +217,7 @@ export class Supervisor extends EventEmitter {
     } catch (err) {
       this.noteToLog(e, (err as Error).message)
       e.log?.close()
-      if (e.stopping) { this.set(e, { status: 'DOWN', pid: undefined, startedAt: undefined }); return }
+      if (e.stopping) { this.set(e, { status: 'DOWN', pid: undefined, startedAt: undefined }); this.reapIfRemoved(name, e); return }
       this.set(e, { status: 'ERROR', error: (err as Error).message, startedAt: undefined })
     } finally {
       e.starting = false
@@ -280,9 +286,9 @@ export class Supervisor extends EventEmitter {
     const stopped: string[] = []
     const unconfirmed: { name: string; pid: number }[] = []
     for (const n of targets) {
-      const e = this.entries.get(n)!
-      if (e.state.status === 'DOWN') stopped.push(n)
-      else if (e.state.pid && isAlive(e.state.pid)) unconfirmed.push({ name: n, pid: e.state.pid })
+      const e = this.entries.get(n)
+      if (!e || e.state.status === 'DOWN') { stopped.push(n); continue }   // 유예 삭제로 이미 걷힌 엔트리 = 종료 확인
+      if (e.state.pid && isAlive(e.state.pid)) unconfirmed.push({ name: n, pid: e.state.pid })
       else stopped.push(n)   // pid 없거나 이미 죽음 = 확인
     }
     return { stopped, unconfirmed }

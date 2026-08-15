@@ -64,6 +64,8 @@ export async function runApp(cfg: Config, opts?: { group?: string }): Promise<vo
 
   const draw = () => {
     const states = sup.states()
+    // 유예 엔트리 삭제 등 어떤 경로로 목록이 줄어도 키 핸들러가 안전하도록 draw가 유일한 클램프 지점
+    sel = Math.min(sel, Math.max(0, states.length - 1))
     const width = process.stdout.columns || 100
     if (view === 'dash') {
       screen.render(dashboardLines(states, sampleSystem(), {
@@ -89,9 +91,12 @@ export async function runApp(cfg: Config, opts?: { group?: string }): Promise<vo
         draw(); return
       }
       const r = sup.applyConfig({ services })
-      sel = Math.min(sel, Math.max(0, sup.states().length - 1))
-      notice = ` 설정 반영: +${r.added.length} 추가, ${r.changed.length} 변경, ${r.removed.length + r.deferredRemoved.length} 제거`
-      noticeExpiry = Date.now() + 5000
+      sel = Math.min(sel, Math.max(0, sup.states().length - 1))   // draw()도 클램프하지만 draw 전에 sel을 쓰는 경로가 없도록 유지 — 중복이지만 무해
+      const totalChanges = r.added.length + r.changed.length + r.removed.length + r.deferredRemoved.length
+      if (totalChanges > 0) {
+        notice = ` 설정 반영: +${r.added.length} 추가, ${r.changed.length} 변경, ${r.removed.length + r.deferredRemoved.length} 제거`
+        noticeExpiry = Date.now() + 5000
+      }
       draw()
     },
     msg => {

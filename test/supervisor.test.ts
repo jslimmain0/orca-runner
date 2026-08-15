@@ -157,6 +157,18 @@ describe('supervisor', () => {
     expect(r.unconfirmed).toEqual([])
   }, 30000)
 
+  it('stopAll: 유예 삭제된 엔트리가 정지 중 걷혀도 크래시하지 않는다', async () => {
+    sup = new Supervisor(cfg(45913, 45914), { logDir: mkdtempSync(join(tmpdir(), 'orca-sv-')) })
+    await sup.start('dummy-a')
+    // dummy-a를 뺀 설정 반영 — 실행 중이므로 즉시 삭제되지 않고 유예(removedFromConfig)된다.
+    // stopAll이 dummy-a를 정지시키면 exit 핸들러가 DOWN 도달과 동시에 entries에서 걷어내는데,
+    // stopAll의 tally 루프가 그 뒤에 같은 이름을 다시 get()하면 undefined를 받는다 — C1 회귀 확인.
+    sup.applyConfig({ services: [sup.states()[1].def] })
+    const r = await sup.stopAll()   // 걷힌 엔트리 때문에 TypeError가 나면 안 된다
+    expect(r.stopped).toContain('dummy-a')
+    expect(sup.states().find(s => s.def.name === 'dummy-a')).toBeUndefined()
+  }, 30000)
+
   it('CRASHED 시 종료 코드/시그널이 error 필드와 로그에 남는다', async () => {
     const logDir = mkdtempSync(join(tmpdir(), 'orca-sv-'))
     sup = new Supervisor(cfg(45835, 45836), { logDir })
@@ -211,6 +223,7 @@ describe('supervisor', () => {
     expect(r.deferredRemoved).toEqual([])
     expect(sup.states().map(s => s.def.name)).toEqual(['dummy-b', 'new-c'])
     expect(sup.states()[1].status).toBe('DOWN')
+    expect(sup.states()[0].configChanged).toBeUndefined()   // dummy-b는 def가 바뀌었지만 비활성(DOWN)이라 조용히 적용 — 플래그 없음
   })
 
   it('applyConfig: 실행 중 서비스 삭제는 유예, 중지 시 목록에서 사라진다', async () => {
