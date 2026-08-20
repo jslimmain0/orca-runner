@@ -22,7 +22,8 @@ export function helpText(): string {
     '  orca down [그룹] --yes  headless 일괄 종료 (--yes 없으면 대상만 표시)',
     '  orca start|stop <이름>  개별 시작/종료',
     '  orca groups           그룹 목록',
-    '  orca remove [이름]    서비스 등록 해제', '',
+    '  orca remove [이름]    서비스 등록 해제',
+    '  orca advise           사용량 기반 heapMb/metaspaceMb 추천', '',
     `예약어(그룹명 사용 불가): ${RESERVED_WORDS.join(' ')}`,
   ].join('\n')
 }
@@ -64,6 +65,12 @@ async function main(): Promise<void> {
     if (!name) { console.error(`사용법: orca ${arg} <이름>`); process.exitCode = 1; return }
     const { runStartStop } = await import('./headless.js')
     try { await runStartStop(arg, name) }
+    catch (e) { if (e instanceof ConfigError) { console.error(e.message); process.exitCode = 1 } else throw e }
+    return
+  }
+  if (arg === 'advise') {
+    const { runAdvise } = await import('./advise.js')
+    try { await runAdvise() }
     catch (e) { if (e instanceof ConfigError) { console.error(e.message); process.exitCode = 1 } else throw e }
     return
   }
