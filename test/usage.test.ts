@@ -32,4 +32,13 @@ describe('usage', () => {
     expect(r.peakMetaMb).toBe(100)
     expect(r.fgcAvg).toBeCloseTo(4)
   })
+  it('fgc 없는 세션이 평균을 왜곡하지 않는다', () => {
+    let u = {} as ReturnType<typeof readUsage>
+    u = mergeSession(u, 's', { peakRssMb: 1, fgc: 6 })
+    u = mergeSession(u, 's', { peakRssMb: 1 })            // jstat 실패 세션
+    u = mergeSession(u, 's', { peakRssMb: 1, fgc: 12 })
+    expect(u['s'].fgcAvg).toBeCloseTo(9)                  // (6+12)/2 — 스킵 세션 무가중
+    expect(u['s'].fgcSamples).toBe(2)
+    expect(u['s'].sessions).toBe(3)
+  })
 })

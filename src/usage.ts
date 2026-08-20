@@ -32,7 +32,7 @@ export async function jstatSnapshot(pid: number): Promise<JstatGc | null> {
   } catch { return null }
 }
 
-export interface UsageEntry { sessions: number; peakRssMb: number; peakHeapMb?: number; peakMetaMb?: number; fgcAvg?: number; updatedAt: string }
+export interface UsageEntry { sessions: number; peakRssMb: number; peakHeapMb?: number; peakMetaMb?: number; fgcAvg?: number; fgcSamples?: number; updatedAt: string }
 
 export function readUsage(path = USAGE_PATH): Record<string, UsageEntry> {
   try {
@@ -51,8 +51,14 @@ export function mergeSession(usage: Record<string, UsageEntry>, name: string,
   }
   if (s.heapMb !== undefined || prev?.peakHeapMb !== undefined) entry.peakHeapMb = Math.max(prev?.peakHeapMb ?? 0, s.heapMb ?? 0)
   if (s.metaMb !== undefined || prev?.peakMetaMb !== undefined) entry.peakMetaMb = Math.max(prev?.peakMetaMb ?? 0, s.metaMb ?? 0)
-  if (s.fgc !== undefined) entry.fgcAvg = prev?.fgcAvg === undefined ? s.fgc : (prev.fgcAvg * (sessions - 1) + s.fgc) / sessions
-  else if (prev?.fgcAvg !== undefined) entry.fgcAvg = prev.fgcAvg
+  if (s.fgc !== undefined) {
+    const n = (prev?.fgcSamples ?? 0) + 1
+    entry.fgcSamples = n
+    entry.fgcAvg = prev?.fgcAvg === undefined ? s.fgc : (prev.fgcAvg * (n - 1) + s.fgc) / n
+  } else if (prev?.fgcAvg !== undefined) {
+    entry.fgcAvg = prev.fgcAvg
+    entry.fgcSamples = prev.fgcSamples
+  }
   return { ...usage, [name]: entry }
 }
 export function writeUsage(u: Record<string, UsageEntry>, path = USAGE_PATH): void {
