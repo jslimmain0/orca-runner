@@ -121,4 +121,14 @@ describe('dashboard v2', () => {
     const ch = st({ status: 'UP' }); ch.configChanged = true
     expect(dashboardLines([ch], SYS, { sel: 0, statsOn: false, color: false })[2]).toContain('r로 반영')
   })
+
+  it('권장 행 노트는 최하위 우선순위로 표시된다', () => {
+    const plain = st({ name: 'svc', status: 'DOWN' })
+    let lines = dashboardLines([plain], SYS, { sel: 0, statsOn: false, color: false, recs: { svc: '힙 512→256' } })
+    expect(lines[2]).toContain('▼ 권장: 힙 512→256 ([v] 적용)')
+    const withErr = st({ name: 'svc', status: 'ERROR', error: '문제' })
+    lines = dashboardLines([withErr], SYS, { sel: 0, statsOn: false, color: false, recs: { svc: '힙 512→256' } })
+    expect(lines[2]).toContain('문제')
+    expect(lines[2]).not.toContain('권장')
+  })
 })

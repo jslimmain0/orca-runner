@@ -80,8 +80,8 @@ services:
 | `run` | command만 ✔ | 실행할 명령 |
 | `module` | | spring 멀티모듈의 대상 모듈 |
 | `health` | | 헬스체크 URL. 없으면 포트 리슨 여부로 UP 판정 |
-| `group` | | 묶음 이름. 예약어(`add setup status up down start stop remove groups help`)는 사용 불가 |
-| `heapMb` / `cpus` / `priority` / `jvmArgs` | | 자원 제한 오버라이드. priority는 `normal`/`belowNormal`/`idle` |
+| `group` | | 묶음 이름. 예약어(`add setup status up down start stop remove groups advise help`)는 사용 불가 |
+| `heapMb` / `metaspaceMb` / `cpus` / `priority` / `jvmArgs` | | 자원 제한 오버라이드. priority는 `normal`/`belowNormal`/`idle` |
 | `env` | | 서비스별 환경변수 맵. 셸 환경 위에 덮어씀. 숫자/불리언 값은 문자열로 자동 변환 |
 
 서비스 이름은 영문/숫자/`. _ -`만 가능합니다(로그 파일명으로도 쓰이기 때문).
@@ -99,7 +99,7 @@ services:
  4 ◇ front           : 5173 SKIP(IDE)
  5 ! security        : 8083 ERROR     포트 8083 점유 중: java.exe (PID 1234)
  ─────────────────────────────────────────────────
- [↑↓/1-9]선택 [s/Enter]시작/중지 [r]재시작 [a]전체 [x]제외 [l]로그 [m]수집 [q]종료
+ [↑↓/1-9]선택 [s/Enter]시작/중지 [r]재시작 [a]전체 [x]제외 [l]로그 [m]수집 [v]권장적용 [q]종료
 ```
 
 ### 키
@@ -114,6 +114,7 @@ services:
 | `l` | 선택한 서비스 로그 보기 (`↑↓` 스크롤, `Esc`/`q`로 복귀) |
 | `m` | 자원 수집 on/off (끄면 수집 헬퍼 프로세스도 종료) |
 | `u` | 지난 세션 재개 (배너가 떠 있을 때만) |
+| `v` | ▼ 권장 표시된 서비스에 추천값 즉시 적용 (9.5절) |
 | `q` | 전체 정리 후 종료. **빌드/기동 진행 중이면 한 번 더 눌러야** 종료 |
 | `Ctrl+C` | 무조건 즉시 전체 정리 후 종료 (확인 없음 — 강제 종료 제스처) |
 
@@ -159,6 +160,8 @@ orca down                # 종료 "대상 목록만" 출력 (dry-run)
 orca down --yes          # 실제 종료
 orca start eis-server    # 개별 시작
 orca stop eis-server     # 개별 종료
+
+orca advise               # 사용량 기반 heapMb/metaspaceMb 추천 (9.5절)
 ```
 
 headless(`up`/`start`)로 띄운 서비스는 CLI가 끝나도 계속 돌고, `orca status`로 확인하고 `orca down --yes`로 정리합니다.
@@ -216,6 +219,7 @@ orca가 비정상 종료(터미널 강제 닫기 등)됐을 때 남은 프로세
 | `run.json` | 실행 중 프로세스 기록 (소유 세션 포함 — 직접 편집 비권장) |
 | `last-session.json` | 마지막 세션 스냅샷 (재개 기능용) |
 | `cache.json` | spring jar 빌드 캐시 |
+| `usage.json` | 서비스별 사용량 누적 (RSS/힙/메타/FGC — 사용량 추천용, 9.5절) |
 
 ## 9. 자원 사용에 대해
 
@@ -224,3 +228,18 @@ orca 자체는 **평균 CPU 1% 이하, RAM 150MB 이하** 예산으로 설계·�
 ```powershell
 pnpm build; node scripts/measure-budget.mjs
 ```
+
+## 9.5 사용량 추천
+
+spring 서비스를 돌릴 때마다 RSS·힙·메타스페이스·Full GC 사용량을 `~\.orca\usage.json`에 누적합니다(대시보드 종료 시 저장). 세션이 쌓이면 대시보드 행에 이렇게 뜹니다:
+
+```
+ 3 ● core-api        : 8080 UP                420MB   1%
+   ▼ 권장: 힙 512→256·메타 256→128 ([v] 적용)
+```
+
+- **상향(위험 신호)**: 힙 사용률 90% 초과 또는 Full GC가 세션평균 20회 넘게 발생 → 1회 관측만으로도 즉시 표시. 메타스페이스는 사용률 85% 초과 시 즉시.
+- **하향(여유 있음)**: 힙 35% 미만, 메타 40% 미만인데 **세션 2회 이상** 관측됐을 때만(단발성 저사용으로 섣불리 줄이지 않기 위함).
+- `v`를 누르면 선택한 서비스의 `heapMb`/`metaspaceMb`를 `services.yaml`에 즉시 반영하고(주석은 보존), 실행 중이었다면 자동으로 재시작합니다. 적용한 항목은 그 세션 동안 다시 뜨지 않습니다.
+- command 서비스는 래퍼 프로세스라 측정 정확도가 떨어져 추천 대상에서 제외됩니다(행 표시도 안 됨).
+- 대시보드 밖에서 한눈에 보려면: `orca advise` — 서비스별 현재 설정·관측치·권장값을 표로 출력합니다(실행 중이면 현재 jstat 값도 병기).

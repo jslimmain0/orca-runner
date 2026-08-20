@@ -19,6 +19,7 @@
 defaults:
   spring:
     heapMb: 512          # 스프링 서비스 공통 힙 상한 (서비스별로 덮어쓰기 가능)
+    metaspaceMb: 256     # 메타스페이스 상한 (서비스별 오버라이드 가능. 기본 256 — 한동안 돌려보고 `orca advise`/대시보드 [v]로 조정)
     cpus: 2              # JVM이 인식할 코어 수
 
 services:

@@ -20,6 +20,11 @@ describe('keys', () => {
     expect(parseDigit(Buffer.from('0'))).toBeNull()
     expect(parseDigit(Buffer.from('a'))).toBeNull()
   })
+
+  it('v 키(권장 적용)를 파싱한다', () => {
+    expect(parseKey(Buffer.from('v'))).toBe('v')
+    expect(parseKey(Buffer.from('V'))).toBe('v')
+  })
 })
 
 describe('renderDiff', () => {

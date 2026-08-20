@@ -31,6 +31,7 @@ export function colorizeRow(row: string, status: ServiceStatus, on: boolean): st
 export interface DashOpts {
   sel: number; statsOn: boolean
   width?: number; now?: number; color?: boolean; helpOverride?: string; banner?: string; notice?: string
+  recs?: Record<string, string>   // 서비스명 → 압축 문구(예: '힙 512→256·메타 256→128') — 행 노트 최하위 우선순위
 }
 
 function statusCell(s: ServiceState, now: number): string {
@@ -58,16 +59,19 @@ export function dashboardLines(states: ServiceState[], sys: SysSample, opts: Das
     const status = statusText.padEnd(19)
     const mem = opts.statsOn ? fmtBytes(s.rssBytes).padStart(8) : ''
     const cpu = opts.statsOn && s.cpuPercent !== undefined ? (s.cpuPercent.toFixed(0) + '%').padStart(5) : ''
+    const rec = opts.recs?.[s.def.name]
     const note = s.removedFromConfig ? '  (설정에서 삭제됨 — 중지 시 제거)'
       : isSkip && s.skipPortUp === false ? '  ⚠ 포트 응답 없음 (IDE에서 내려간 듯)'
       : s.error ? '  ' + s.error
       : s.configChanged ? '  ⟳ 설정 변경 — r로 반영'
-      : (s.status === 'BUILDING' ? '  (빌드는 수 분 걸릴 수 있음)' : '')
+      : s.status === 'BUILDING' ? '  (빌드는 수 분 걸릴 수 있음)'
+      : rec ? `  ▼ 권장: ${rec} ([v] 적용)`   // 최하위 우선순위 — 위 어떤 노트도 없을 때만 표시
+      : ''
     const num = i < 9 ? String(i + 1) : ' '
     const plain = truncateRow(`${cur}${num} ${icon} ${name} :${port} ${status}${mem}${cpu}${note}`, width)
     return colorizeRow(plain, s.status, color)
   })
-  const help = opts.helpOverride ?? ' [↑↓/1-9]선택 [s/Enter]시작/중지 [r]재시작 [a]전체 [x]제외 [l]로그 [m]수집 [q]종료'
+  const help = opts.helpOverride ?? ' [↑↓/1-9]선택 [s/Enter]시작/중지 [r]재시작 [a]전체 [x]제외 [l]로그 [m]수집 [v]권장적용 [q]종료'
   const out = [head, sep, ...rows, sep, help]
   const extras = [opts.banner, opts.notice].filter((x): x is string => !!x)
   if (extras.length > 0) out.splice(1, 0, ...extras)
