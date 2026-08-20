@@ -337,6 +337,7 @@ orca advise               <span class="c"># 사용량 기반 heapMb/metaspaceMb 
       <li><kbd>v</kbd>를 누르면 선택한 서비스의 <code>heapMb</code>/<code>metaspaceMb</code>를 <code>services.yaml</code>에 즉시 반영하고(주석은 보존), 실행 중이었다면 자동으로 재시작합니다. 적용한 항목은 그 세션 동안 다시 뜨지 않습니다.</li>
       <li>command 서비스는 래퍼 프로세스라 측정 정확도가 떨어져 추천 대상에서 제외됩니다(행 표시도 안 됨).</li>
       <li>대시보드 밖에서 한눈에 보려면: <code>orca advise</code> — 서비스별 현재 설정·관측치·권장값을 표로 출력합니다(실행 중이면 현재 jstat 값도 병기).</li>
+      <li>headless(<code>orca up</code>/<code>start</code>)로 띄운 세션은 수집되지 않습니다 — 데이터는 대시보드 세션에서만 쌓입니다.</li>
     </ul>
   </section>
 

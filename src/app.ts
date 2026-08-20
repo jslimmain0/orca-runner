@@ -219,10 +219,12 @@ export async function runApp(cfg: Config, opts?: { group?: string }): Promise<vo
     }))
     try {
       let usage = readUsage()
-      for (const [name, peakBytes] of peakRss) {
+      const allNames = new Set([...peakRss.keys(), ...jstatPeaks.keys()])
+      for (const name of allNames) {
+        const peakBytes = peakRss.get(name)
         const g = jstatPeaks.get(name)
         usage = mergeSession(usage, name, {
-          peakRssMb: Math.round(peakBytes / 1024 ** 2),
+          peakRssMb: peakBytes ? Math.round(peakBytes / 1024 ** 2) : 0,
           heapMb: g ? Math.round(g.heapUsedKb / 1024) : undefined,
           metaMb: g ? Math.round(g.metaUsedKb / 1024) : undefined,
           fgc: g?.fullGc,

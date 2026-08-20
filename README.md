@@ -28,7 +28,7 @@ orca down [그룹] --yes    # headless 일괄 종료 (--yes 없으면 대상만 
 orca start|stop <이름>    # 개별 서비스 시작/종료
 orca remove [이름]        # 서비스 등록 해제
 orca groups               # 그룹 목록
-orca advise                # 사용량 기반 heapMb/metaspaceMb 추천
+orca advise               # 사용량 기반 heapMb/metaspaceMb 추천
 orca --help                # 전체 명령 요약
 ```
 

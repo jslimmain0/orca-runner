@@ -205,7 +205,7 @@ config.ts: BUILTIN `{ heapMb: 512, cpus: 2, priority: 'belowNormal', metaspaceMb
   - `recommend(def: ServiceDef, u: UsageEntry | undefined): Recommendation | null` — Global Constraints의 규칙 그대로. command/데이터 없음/변화 없음 → null. 하향은 u.sessions >= 2 필수.
   - `adviseLines(cfg: Config, usage: Record<string, UsageEntry>, live?: Record<string, JstatGc | null>): string[]` — 서비스별 한 블록. live가 있으면 현재값 병기. command는 `(측정 제외 — command)` 한 줄.
   - `applyRecommendation(src: string, name: string, rec: Recommendation): string` (순수) — yaml Document API로 heapMb/metaspaceMb setIn(있는 값만), 주석 보존, 반환 전 loadConfigFromString 검증. 미등록 이름 throw.
-  - `runAdvise(): Promise<void>` — loadConfig + readUsage + 실행 중 spring 서비스(run.json alive)에 jstatSnapshot 1회씩 → adviseLines 출력. 항상 exit 0 (추천은 정보).
+  - `runAdvise(): Promise<void>` — loadConfig + readUsage + 실행 중 spring 서비스(run.json alive)에 jstatSnapshot 1회씩 → adviseLines 출력. 정상 로드+추천 없음일 때만 exit 0; ConfigError/빈 서비스는 status/groups와 동일하게 exit 1 (T2 fix round에서 확정).
 - `cli.ts`: `advise` 분기 (groups 분기 옆), helpText 자동화 섹션에 `  orca advise           사용량 기반 heapMb/metaspaceMb 추천` 추가.
 
 - [ ] **Step 1: 실패하는 테스트** — `test/advise.test.ts` 신규:
