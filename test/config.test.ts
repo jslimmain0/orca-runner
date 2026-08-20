@@ -93,4 +93,20 @@ describe('config', () => {
     const bad = `defaults:\n  spring:\n    priority: turbo\nservices:\n  a:\n    kind: spring\n    dir: C:\\x\n    port: 1\n`
     expect(() => loadConfigFromString(bad)).toThrowError(/defaults\.spring\.priority/)
   })
+
+  it('env: 문자열/숫자/불리언 값을 문자열 맵으로 정규화한다', () => {
+    const src = `services:\n  a:\n    kind: command\n    dir: C:\\x\n    run: r\n    port: 1\n    env:\n      PROFILE: local\n      PG_PORT: 5432\n      DEBUG: true\n`
+    const cfg = loadConfigFromString(src)
+    expect(cfg.services[0].env).toEqual({ PROFILE: 'local', PG_PORT: '5432', DEBUG: 'true' })
+  })
+  it('env 미지정이면 빈 객체', () => {
+    const src = `services:\n  a:\n    kind: command\n    dir: C:\\x\n    run: r\n    port: 1\n`
+    expect(loadConfigFromString(src).services[0].env).toEqual({})
+  })
+  it('env 값이 객체면 에러, 키 형식 위반이면 에러', () => {
+    const nested = `services:\n  a:\n    kind: command\n    dir: C:\\x\n    run: r\n    port: 1\n    env:\n      BAD:\n        x: 1\n`
+    expect(() => loadConfigFromString(nested)).toThrowError(/env\.BAD/)
+    const badKey = `services:\n  a:\n    kind: command\n    dir: C:\\x\n    run: r\n    port: 1\n    env:\n      "1BAD": v\n`
+    expect(() => loadConfigFromString(badKey)).toThrowError(/env 키/)
+  })
 })

@@ -86,6 +86,21 @@ describe('procctl', () => {
     expect(readRunEntries(file)).toEqual({})
   })
 
+  it('spawnService: env가 셸 환경 위에 덮어써진다', async () => {
+    const out = new PassThrough()
+    let buf = ''
+    out.on('data', d => { buf += String(d) })
+    const { pid } = await spawnService({
+      command: process.execPath,
+      args: ['-e', "process.stdout.write((process.env.ORCA_ENV_TEST || 'missing') + '|' + (process.env.PATH ? 'inherited' : 'no-path'))"],
+      cwd: process.cwd(), priority: 'normal', out,
+      env: { ORCA_ENV_TEST: 'hello' },
+    })
+    await new Promise(r => setTimeout(r, 1500))
+    expect(buf).toBe('hello|inherited')      // 서비스 값 적용 + 셸 환경(PATH) 상속 유지
+    expect(isAlive(pid)).toBe(false)
+  }, 15000)
+
   it('findOrphans: owner가 죽었고 pid가 살아있으면 고아, owner=0(headless)은 제외', () => {
     const file = join(mkdtempSync(join(tmpdir(), 'orca-run-')), 'run.json')
     writeFileSync(file, JSON.stringify({

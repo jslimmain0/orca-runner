@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Config } from '../src/types.js'
 
-const base = { kind: 'command' as const, dir: 'C:\\x', run: 'r', heapMb: 0, cpus: 0, priority: 'normal' as const, jvmArgs: [] }
+const base = { kind: 'command' as const, dir: 'C:\\x', run: 'r', heapMb: 0, cpus: 0, priority: 'normal' as const, jvmArgs: [], env: {} }
 const cfg: Config = { services: [{ ...base, name: 'a', port: 1 }, { ...base, name: 'b', port: 2 }] }
 
 describe('session', () => {

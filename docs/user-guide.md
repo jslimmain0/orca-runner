@@ -61,6 +61,8 @@ services:
     heapMb: 1024           # 이 서비스만 힙 1GB
     jvmArgs:
       - -Dspring.profiles.active=local
+    env:
+      PG_PORT: 5432          # 숫자도 됨 — 문자열로 자동 변환
   legacy-gateway:
     kind: command
     dir: C:\work\gateway
@@ -80,6 +82,7 @@ services:
 | `health` | | 헬스체크 URL. 없으면 포트 리슨 여부로 UP 판정 |
 | `group` | | 묶음 이름. 예약어(`add setup status up down start stop remove groups help`)는 사용 불가 |
 | `heapMb` / `cpus` / `priority` / `jvmArgs` | | 자원 제한 오버라이드. priority는 `normal`/`belowNormal`/`idle` |
+| `env` | | 서비스별 환경변수 맵. 셸 환경 위에 덮어씀. 숫자/불리언 값은 문자열로 자동 변환 |
 
 서비스 이름은 영문/숫자/`. _ -`만 가능합니다(로그 파일명으로도 쓰이기 때문).
 

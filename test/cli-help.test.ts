@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { helpText, groupSummary } from '../src/cli.js'
 import type { Config } from '../src/types.js'
 
-const base = { kind: 'command' as const, dir: 'C:\\x', run: 'r', heapMb: 0, cpus: 0, priority: 'normal' as const, jvmArgs: [] }
+const base = { kind: 'command' as const, dir: 'C:\\x', run: 'r', heapMb: 0, cpus: 0, priority: 'normal' as const, jvmArgs: [], env: {} }
 
 describe('help/groups', () => {
   it('helpText: 첫 10분 경로와 자동화 섹션이 분리돼 있다', () => {

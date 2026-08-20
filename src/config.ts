@@ -78,6 +78,16 @@ export function loadConfigFromString(src: string, path = '(inline)'): Config {
     for (const f of ['health', 'run', 'group', 'module'] as const) {
       if (s[f] !== undefined && typeof s[f] !== 'string') fail(at, `${name}: ${f}은(는) 문자열이어야 합니다`)
     }
+    const env: Record<string, string> = {}
+    if (s.env !== undefined) {
+      if (typeof s.env !== 'object' || s.env === null || Array.isArray(s.env)) fail(at, `${name}: env는 키-값 맵이어야 합니다`)
+      for (const [k, v] of Object.entries(s.env as Record<string, unknown>)) {
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) fail(at, `${name}: env 키 '${k}'는 영문/숫자/_ 형식이어야 합니다`)
+        if (typeof v === 'string') env[k] = v
+        else if (typeof v === 'number' || typeof v === 'boolean') env[k] = String(v)
+        else fail(at, `${name}: env.${k} 값은 문자열/숫자/불리언이어야 합니다`)
+      }
+    }
     // command 서비스는 cpus 기본값이 0 — affinity는 명시적으로 설정한 경우에만 적용 (opt-in)
     const base = s.kind === 'spring' ? springDefaults : { heapMb: 0, cpus: 0, priority: BUILTIN.priority }
     services.push({
@@ -93,6 +103,7 @@ export function loadConfigFromString(src: string, path = '(inline)'): Config {
       cpus: (s.cpus as number | undefined) ?? base.cpus,
       priority: (s.priority as Priority | undefined) ?? base.priority,
       jvmArgs: (s.jvmArgs as string[] | undefined) ?? [],
+      env,
     })
   }
 

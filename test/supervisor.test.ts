@@ -12,7 +12,7 @@ import type { Config } from '../src/types.js'
 const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'dummy-server.mjs')
 
 function cfg(port1: number, port2: number): Config {
-  const base = { kind: 'command' as const, dir: process.cwd(), heapMb: 0, cpus: 0, priority: 'normal' as const, jvmArgs: [] }
+  const base = { kind: 'command' as const, dir: process.cwd(), heapMb: 0, cpus: 0, priority: 'normal' as const, jvmArgs: [], env: {} }
   return {
     services: [
       { ...base, name: 'dummy-a', run: `node "${FIXTURE}" ${port1}`, port: port1, health: `http://localhost:${port1}/health` },
@@ -68,7 +68,7 @@ describe('supervisor', () => {
         {
           name: 'never-up', kind: 'command', dir: process.cwd(),
           run: 'node -e "setInterval(()=>{},1000)"', port: 45827,
-          heapMb: 0, cpus: 0, priority: 'normal', jvmArgs: [],
+          heapMb: 0, cpus: 0, priority: 'normal', jvmArgs: [], env: {},
         },
       ],
     }
@@ -114,7 +114,7 @@ describe('supervisor', () => {
     writeFileSync(join(dir, 'gradlew.bat'), '@echo off\r\ntimeout /t 30 /nobreak >nul\r\nexit /b 0\r\n')
     const cfg: Config = {
       services: [
-        { name: 'slow-build', kind: 'spring', dir, port: 45828, heapMb: 512, cpus: 2, priority: 'belowNormal', jvmArgs: [] },
+        { name: 'slow-build', kind: 'spring', dir, port: 45828, heapMb: 512, cpus: 2, priority: 'belowNormal', jvmArgs: [], env: {} },
       ],
     }
     sup = new Supervisor(cfg, { logDir: mkdtempSync(join(tmpdir(), 'orca-sv-')) })
@@ -212,7 +212,7 @@ describe('supervisor', () => {
 
   it('applyConfig: 추가/비활성 제거/순서 재정렬', () => {
     sup = new Supervisor(cfg(45901, 45902), { logDir: mkdtempSync(join(tmpdir(), 'orca-sv-')) })
-    const base = { kind: 'command' as const, dir: process.cwd(), heapMb: 0, cpus: 0, priority: 'normal' as const, jvmArgs: [] }
+    const base = { kind: 'command' as const, dir: process.cwd(), heapMb: 0, cpus: 0, priority: 'normal' as const, jvmArgs: [], env: {} }
     const r = sup.applyConfig({ services: [
       { ...base, name: 'dummy-b', run: 'x', port: 45902 },        // 순서 앞으로
       { ...base, name: 'new-c', run: 'x', port: 45903 },          // 신규
@@ -229,7 +229,7 @@ describe('supervisor', () => {
   it('applyConfig: 실행 중 서비스 삭제는 유예, 중지 시 목록에서 사라진다', async () => {
     sup = new Supervisor(cfg(45905, 45906), { logDir: mkdtempSync(join(tmpdir(), 'orca-sv-')) })
     await sup.start('dummy-a')
-    const base = { kind: 'command' as const, dir: process.cwd(), heapMb: 0, cpus: 0, priority: 'normal' as const, jvmArgs: [] }
+    const base = { kind: 'command' as const, dir: process.cwd(), heapMb: 0, cpus: 0, priority: 'normal' as const, jvmArgs: [], env: {} }
     const r = sup.applyConfig({ services: [{ ...base, name: 'dummy-b', run: `node "${FIXTURE}" 45906`, port: 45906 }] })
     expect(r.deferredRemoved).toEqual(['dummy-a'])
     const a = sup.states().find(s => s.def.name === 'dummy-a')!
@@ -258,7 +258,7 @@ describe('supervisor', () => {
   it('applyConfig가 시작 진행 중인 서비스를 고아로 만들지 않는다', async () => {
     sup = new Supervisor(cfg(45911, 45912), { logDir: mkdtempSync(join(tmpdir(), 'orca-sv-')) })
     const p = sup.start('dummy-a')                      // await 안 함 — 첫 await(whoHoldsPort) 창에 정지
-    const base = { kind: 'command' as const, dir: process.cwd(), heapMb: 0, cpus: 0, priority: 'normal' as const, jvmArgs: [] }
+    const base = { kind: 'command' as const, dir: process.cwd(), heapMb: 0, cpus: 0, priority: 'normal' as const, jvmArgs: [], env: {} }
     const r = sup.applyConfig({ services: [{ ...base, name: 'dummy-b', run: `node "${FIXTURE}" 45912`, port: 45912 }] })
     expect(r.deferredRemoved).toEqual(['dummy-a'])      // 즉시 제거가 아니라 유예여야 함
     await p
@@ -268,5 +268,14 @@ describe('supervisor', () => {
     expect(sup.pids().has('dummy-a')).toBe(true)        // 추적 유지
     await sup.stop('dummy-a')
     expect(sup.states().find(s => s.def.name === 'dummy-a')).toBeUndefined()
+  }, 30000)
+
+  it('env 변경은 configChanged로 표시된다 (핫로드 편승)', async () => {
+    sup = new Supervisor(cfg(45921, 45922), { logDir: mkdtempSync(join(tmpdir(), 'orca-sv-')) })
+    await sup.start('dummy-a')
+    const cur = sup.states().map(s => s.def)
+    sup.applyConfig({ services: [{ ...cur[0], env: { NEW_VAR: 'x' } }, cur[1]] })
+    expect(sup.states()[0].configChanged).toBe(true)
+    await sup.stop('dummy-a')
   }, 30000)
 })

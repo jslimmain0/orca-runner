@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 import type { Config } from '../src/types.js'
 
 const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'dummy-server.mjs')
-const base = { kind: 'command' as const, dir: process.cwd(), heapMb: 0, cpus: 0, priority: 'normal' as const, jvmArgs: [] }
+const base = { kind: 'command' as const, dir: process.cwd(), heapMb: 0, cpus: 0, priority: 'normal' as const, jvmArgs: [], env: {} }
 const cfg = (p1: number): Config => ({ services: [
   { ...base, name: 'h-a', run: `node "${FIXTURE}" ${p1}`, port: p1, health: `http://localhost:${p1}/health` },
 ] })

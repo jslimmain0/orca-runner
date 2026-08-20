@@ -3,7 +3,7 @@ import { dashboardLines, fmtBytes, truncateRow, colorizeRow } from '../src/tui/d
 import type { ServiceState } from '../src/types.js'
 
 const st = (over: Partial<ServiceState['def']> & Partial<ServiceState> & { status: ServiceState['status'] }): ServiceState => ({
-  def: { name: over.name ?? 'svc', kind: 'command', dir: 'C:\\x', port: over.port ?? 8080, heapMb: 0, cpus: 0, priority: 'normal', jvmArgs: [], run: 'r' },
+  def: { name: over.name ?? 'svc', kind: 'command', dir: 'C:\\x', port: over.port ?? 8080, heapMb: 0, cpus: 0, priority: 'normal', jvmArgs: [], env: {}, run: 'r' },
   status: over.status, rssBytes: over.rssBytes, error: over.error, startedAt: over.startedAt, pid: over.pid,
 })
 const SYS = { cpuPercent: 41, usedBytes: 18 * 1024 ** 3, totalBytes: 63 * 1024 ** 3 }

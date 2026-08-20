@@ -14,6 +14,7 @@ export interface ServiceDef {
   cpus: number
   priority: Priority
   jvmArgs: string[]
+  env: Record<string, string>   // 서비스별 환경변수 — 셸 환경 위에 덮어써서 실행 (기본 {})
 }
 
 export interface Config { services: ServiceDef[] }

@@ -33,6 +33,9 @@ services:
     health: http://localhost:<포트>/actuator/health   # actuator 없으면 이 줄 삭제(포트로 판정)
     jvmArgs:
       - -Dspring.profiles.active=local
+    env:
+      SPRING_PROFILES_ACTIVE: local
+      PG_PORT: 5432          # 숫자도 됨 — 문자열로 자동 변환
 
   bank-apr-server:
     group: tspay

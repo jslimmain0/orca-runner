@@ -164,8 +164,8 @@ export class Supervisor extends EventEmitter {
 
       const cpus = def.kind === 'command' && def.cpus > 0 ? def.cpus : undefined
       const { pid, child } = headless
-        ? await spawnService({ command, args, cwd: def.dir, priority: def.priority, cpus, detach: true, logFile: this.logFile(name) })
-        : await spawnService({ command, args, cwd: def.dir, priority: def.priority, cpus, out: e.log!.stream() })
+        ? await spawnService({ command, args, cwd: def.dir, priority: def.priority, cpus, detach: true, logFile: this.logFile(name), env: def.env })
+        : await spawnService({ command, args, cwd: def.dir, priority: def.priority, cpus, out: e.log!.stream(), env: def.env })
       if (headless) { e.log?.close(); e.log = undefined }   // 빌드용으로 잠깐 열었던 로그 — 이제부터는 자식이 파일에 직접 쓴다
       e.child = child
       recordStart(name, pid, this.runPath, this.owner)
