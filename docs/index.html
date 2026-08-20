@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>orca 사용자 가이드</title>
+<style>
+  :root {
+    --ground: #101215;
+    --surface: #16191d;
+    --line: #262b30;
+    --text: #dbe2e8;
+    --muted: #8b949c;
+    --accent: #4ec9a3;
+    --chip: #1d2126;
+    --ok: #4ec97a;
+    --warn: #d9b44a;
+    --bad: #e06c6c;
+    --err: #c77ddb;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --ground: #f3f5f6; --surface: #ffffff; --line: #dde3e6;
+      --text: #1c2226; --muted: #5c666d; --accent: #14876b; --chip: #e9edef;
+      --ok: #1d8a4e; --warn: #9a7b17; --bad: #bb4444; --err: #8b4dab;
+    }
+  }
+  :root[data-theme="light"] {
+    --ground: #f3f5f6; --surface: #ffffff; --line: #dde3e6;
+    --text: #1c2226; --muted: #5c666d; --accent: #14876b; --chip: #e9edef;
+    --ok: #1d8a4e; --warn: #9a7b17; --bad: #bb4444; --err: #8b4dab;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--text);
+    font-family: "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+    line-height: 1.65;
+  }
+  .mono { font-family: "Cascadia Mono", Consolas, "D2Coding", monospace; }
+
+  .shell { max-width: 1080px; margin: 0 auto; padding: 44px 24px 90px; display: grid; grid-template-columns: 210px 1fr; gap: 40px; }
+  @media (max-width: 820px) { .shell { grid-template-columns: 1fr; gap: 8px; } }
+
+  nav { align-self: start; position: sticky; top: 24px; font-size: 0.88rem; }
+  @media (max-width: 820px) { nav { position: static; border-bottom: 1px solid var(--line); padding-bottom: 14px; } }
+  nav .brand { font-family: "Cascadia Mono", Consolas, monospace; font-size: 1.3rem; margin-bottom: 14px; }
+  nav .brand .dollar { color: var(--accent); }
+  nav ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  @media (max-width: 820px) { nav ol { flex-direction: row; flex-wrap: wrap; gap: 4px 14px; } }
+  nav a { color: var(--muted); text-decoration: none; }
+  nav a:hover, nav a:focus-visible { color: var(--accent); outline: none; }
+  nav .no { color: var(--accent); font-family: "Cascadia Mono", Consolas, monospace; font-size: 0.8rem; margin-right: 6px; }
+
+  main { min-width: 0; }
+  .lede { color: var(--muted); max-width: 68ch; margin: 0 0 8px; }
+  .lede b { color: var(--text); }
+  h1 { font-family: "Cascadia Mono", Consolas, monospace; font-size: 1.9rem; margin: 0 0 12px; letter-spacing: -0.02em; text-wrap: balance; }
+  section { margin-top: 46px; }
+  h2 { font-size: 1.28rem; margin: 0 0 12px; font-weight: 650; text-wrap: balance; }
+  h2 .no { color: var(--accent); font-family: "Cascadia Mono", Consolas, monospace; font-size: 0.95rem; margin-right: 8px; }
+  h3 { font-size: 1.02rem; margin: 22px 0 8px; font-weight: 650; }
+  p { max-width: 70ch; margin: 0 0 12px; }
+  p.dim, li.dim { color: var(--muted); }
+
+  pre {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    padding: 14px 16px; overflow-x: auto; margin: 12px 0;
+    font-family: "Cascadia Mono", Consolas, monospace; font-size: 0.86rem; line-height: 1.55;
+  }
+  pre .c { color: var(--muted); }
+  pre .g { color: var(--ok); }
+  pre .y { color: var(--warn); }
+  pre .r { color: var(--bad); }
+  pre .m { color: var(--err); }
+  pre .d { color: var(--muted); }
+  code {
+    font-family: "Cascadia Mono", Consolas, monospace; font-size: 0.88em;
+    background: var(--chip); padding: 1px 6px; border-radius: 4px;
+  }
+  pre code { background: none; padding: 0; }
+
+  kbd {
+    font-family: "Cascadia Mono", Consolas, monospace; font-size: 0.82rem;
+    background: var(--chip); border: 1px solid var(--line); border-bottom-width: 2px;
+    border-radius: 5px; padding: 1px 8px; white-space: nowrap;
+  }
+
+  .tablewrap { overflow-x: auto; margin: 12px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 0.84rem; letter-spacing: 0.03em; }
+  td:first-child { white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+
+  .dot { display: inline-block; width: 0.9em; text-align: center; font-family: "Cascadia Mono", Consolas, monospace; }
+  .ok { color: var(--ok); } .warn { color: var(--warn); } .bad { color: var(--bad); } .err { color: var(--err); } .dim { color: var(--muted); }
+
+  .callout {
+    border-left: 3px solid var(--accent); background: var(--surface);
+    border-radius: 0 8px 8px 0; padding: 12px 16px; margin: 14px 0; max-width: 70ch;
+  }
+  .callout p { margin: 0; }
+
+  ul { padding-left: 20px; max-width: 70ch; }
+  li { margin: 4px 0; }
+  .foot { margin-top: 60px; border-top: 1px solid var(--line); padding-top: 18px; color: var(--muted); font-size: 0.86rem; }
+  .foot a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="shell">
+<nav>
+  <div class="brand"><span class="dollar">$</span> orca</div>
+  <ol>
+    <li><a href="#install"><span class="no">1</span>설치</a></li>
+    <li><a href="#first10"><span class="no">2</span>첫 10분</a></li>
+    <li><a href="#register"><span class="no">3</span>서비스 등록</a></li>
+    <li><a href="#dashboard"><span class="no">4</span>대시보드</a></li>
+    <li><a href="#headless"><span class="no">5</span>자동화</a></li>
+    <li><a href="#hotreload"><span class="no">6</span>설정 핫로드</a></li>
+    <li><a href="#trouble"><span class="no">7</span>문제 해결</a></li>
+    <li><a href="#files"><span class="no">8</span>파일 위치</a></li>
+    <li><a href="#budget"><span class="no">9</span>자원 사용</a></li>
+  </ol>
+</nav>
+
+<main>
+  <h1>orca 사용자 가이드</h1>
+  <p class="lede">orca는 로컬 개발에 필요한 사내 서비스들을 <b>자원을 아껴서</b> 백그라운드로 띄워주는 Windows 전용 터미널 도구입니다.</p>
+  <p class="lede">핵심 아이디어는 하나예요: <b>지금 고치고 있는 서비스는 IDE로 띄우고, "떠 있기만 하면 되는" 나머지는 orca에 맡긴다.</b> orca는 맡은 서비스를 힙 제한·코어 제한·낮은 우선순위로 실행해서, 6개를 동시에 띄워도 컴퓨터가 버벅이지 않게 합니다.</p>
+
+  <section id="install">
+    <h2><span class="no">1</span>설치</h2>
+    <p>저장소에서 한 번만:</p>
+    <pre><code>pnpm install
+pnpm build
+npm install -g .        <span class="c"># 이후 어느 폴더에서든 `orca`</span></code></pre>
+    <p class="dim">업데이트했을 때도 같은 명령을 다시 실행하면 됩니다.</p>
+  </section>
+
+  <section id="first10">
+    <h2><span class="no">2</span>첫 10분</h2>
+    <pre><code>orca setup     <span class="c"># ① 최초 1회 튜닝</span>
+orca add       <span class="c"># ② 서비스 등록 (대화형)</span>
+orca           <span class="c"># ③ 대시보드 실행 → a 키로 전체 시작</span></code></pre>
+    <p><b>① <code>orca setup</code></b> — Windows Defender 실시간 검사 예외에 프로젝트 폴더·Gradle 캐시·pnpm 스토어를 등록합니다(관리자 권한 창이 한 번 뜹니다 — 빌드 속도와 상시 CPU 사용에 크게 영향). Java/Node 버전과 <code>JAVA_HOME</code>도 점검하고, 각 프로젝트의 <code>gradle.properties</code>에 권장 사항이 있으면 안내만 합니다(파일을 고치지는 않음).</p>
+    <p><b>② <code>orca add</code></b> — 질문에 답하면 서비스가 등록됩니다. 잘못 입력하면 그 항목만 다시 물어보고, 하나 끝나면 "다른 서비스도 등록할까요?"로 이어서 등록할 수 있어요.</p>
+    <p><b>③ <code>orca</code></b> — 대시보드가 뜹니다. <kbd>a</kbd>를 누르면 등록된 서비스가 순차적으로 빌드·기동됩니다(동시 빌드로 CPU가 폭주하지 않도록 일부러 순차).</p>
+  </section>
+
+  <section id="register">
+    <h2><span class="no">3</span>서비스 등록</h2>
+    <h3>두 가지 종류</h3>
+    <div class="tablewrap"><table>
+      <tr><th>kind</th><th>대상</th><th>orca가 하는 일</th></tr>
+      <tr><td><code>spring</code></td><td>Gradle 기반 Spring Boot 프로젝트</td><td><code>gradlew bootJar</code>로 jar를 빌드(소스가 안 바뀌면 캐시 재사용)한 뒤 <code>java -jar</code>를 <b>힙 512MB 제한 + 2코어만 인식 + SerialGC + 낮은 우선순위</b>로 실행. 빌드에 쓴 Gradle 데몬도 자동 정리</td></tr>
+      <tr><td><code>command</code></td><td>그 외 전부 (스크립트, 정적 서버 등)</td><td>등록한 명령을 낮은 우선순위로 실행. <code>cpus</code>를 명시하면 CPU affinity 제한도 적용</td></tr>
+    </table></div>
+
+    <h3>설정 파일 직접 편집</h3>
+    <p>등록 내용은 전부 <code>%USERPROFILE%\.orca\services.yaml</code> 한 파일에 있습니다. 직접 편집해도 되고, <b>대시보드가 떠 있는 동안 저장하면 자동으로 반영</b>됩니다(<a href="#hotreload" style="color:var(--accent);text-decoration:none">핫로드 — 6절</a>).</p>
+    <pre><code><span class="d">defaults:</span>
+<span class="d">  spring:</span>
+    heapMb: 768            <span class="c"># 전역 기본값 덮어쓰기 (기본 512)</span>
+
+<span class="d">services:</span>
+  <span class="g">eis-server</span>:
+    group: tspay           <span class="c"># 그룹 (orca tspay 로 묶어서 실행)</span>
+    kind: spring
+    dir: C:\work\EIS
+    module: eis-server     <span class="c"># 멀티모듈이면 모듈명 (단일 모듈이면 생략)</span>
+    port: 8081
+    health: http://localhost:8081/actuator/health
+    heapMb: 1024           <span class="c"># 이 서비스만 힙 1GB</span>
+    jvmArgs:
+      - -Dspring.profiles.active=local
+  <span class="g">legacy-gateway</span>:
+    kind: command
+    dir: C:\work\gateway
+    run: run-local.cmd
+    port: 9000</code></pre>
+
+    <h3>필드 레퍼런스</h3>
+    <div class="tablewrap"><table>
+      <tr><th>필드</th><th>필수</th><th>설명</th></tr>
+      <tr><td><code>kind</code></td><td>✔</td><td><code>spring</code> 또는 <code>command</code></td></tr>
+      <tr><td><code>dir</code></td><td>✔</td><td>프로젝트 절대 경로 (<code>C:\...</code>)</td></tr>
+      <tr><td><code>port</code></td><td>✔</td><td>서비스 포트 (1~65535, 서비스 간 중복 불가)</td></tr>
+      <tr><td><code>run</code></td><td>command만 ✔</td><td>실행할 명령</td></tr>
+      <tr><td><code>module</code></td><td></td><td>spring 멀티모듈의 대상 모듈</td></tr>
+      <tr><td><code>health</code></td><td></td><td>헬스체크 URL. 없으면 포트 리슨 여부로 UP 판정</td></tr>
+      <tr><td><code>group</code></td><td></td><td>묶음 이름. 예약어(<code>add setup status up down start stop remove groups help</code>)는 사용 불가</td></tr>
+      <tr><td><code>heapMb</code> <code>cpus</code> <code>priority</code> <code>jvmArgs</code></td><td></td><td>자원 제한 오버라이드. priority는 <code>normal</code> / <code>belowNormal</code> / <code>idle</code></td></tr>
+    </table></div>
+    <p class="dim">서비스 이름은 영문/숫자/<code>. _ -</code>만 가능합니다(로그 파일명으로도 쓰이기 때문).</p>
+    <p>등록 해제는 <code>orca remove [이름]</code> — 이름을 생략하면 번호 목록에서 고릅니다. 실행 중인 서비스는 해제할 수 없어요(먼저 <code>orca stop &lt;이름&gt;</code>).</p>
+  </section>
+
+  <section id="dashboard">
+    <h2><span class="no">4</span>대시보드</h2>
+    <pre><code> ORCA RUNNER   시스템 CPU 12% · RAM 21.4GB/63.1GB · 서비스 2.1GB
+ ─────────────────────────────────────────────────
+&gt;1 <span class="g">● eis-server      : 8081 UP</span>                480MB   1%
+ 2 <span class="y">■ core-api        : 8080 BUILDING 42s</span>       <span class="c">(빌드는 수 분 걸릴 수 있음)</span>
+ 3 <span class="y">▲ batch-flow      : 8082 STARTING 7s</span>
+ 4 <span class="d">◇ front           : 5173 SKIP(IDE)</span>
+ 5 <span class="m">! security        : 8083 ERROR</span>     <span class="c">포트 8083 점유 중: java.exe (PID 1234)</span>
+ ─────────────────────────────────────────────────
+ [↑↓/1-9]선택 [s/Enter]시작/중지 [r]재시작 [a]전체 [x]제외 [l]로그 [m]수집 [q]종료</code></pre>
+
+    <h3>키</h3>
+    <div class="tablewrap"><table>
+      <tr><th>키</th><th>동작</th></tr>
+      <tr><td><kbd>↑</kbd> <kbd>↓</kbd> / <kbd>1</kbd>~<kbd>9</kbd></td><td>서비스 선택 (행 앞 번호로 바로 이동)</td></tr>
+      <tr><td><kbd>s</kbd> / <kbd>Enter</kbd></td><td>선택한 서비스 시작/중지 토글</td></tr>
+      <tr><td><kbd>r</kbd></td><td>재시작 (중지 → 완전히 내려간 것 확인 → 시작)</td></tr>
+      <tr><td><kbd>a</kbd></td><td>전체 시작 (SKIP 표시된 서비스는 건너뜀)</td></tr>
+      <tr><td><kbd>x</kbd></td><td>SKIP(IDE) 토글 — "오늘은 이건 IDE로 띄울 거야" 표시</td></tr>
+      <tr><td><kbd>l</kbd></td><td>선택한 서비스 로그 보기 (<kbd>↑</kbd><kbd>↓</kbd> 스크롤, <kbd>Esc</kbd>/<kbd>q</kbd>로 복귀)</td></tr>
+      <tr><td><kbd>m</kbd></td><td>자원 수집 on/off (끄면 수집 헬퍼 프로세스도 종료)</td></tr>
+      <tr><td><kbd>u</kbd></td><td>지난 세션 재개 (배너가 떠 있을 때만)</td></tr>
+      <tr><td><kbd>q</kbd></td><td>전체 정리 후 종료. <b>빌드/기동 진행 중이면 한 번 더 눌러야</b> 종료</td></tr>
+      <tr><td><kbd>Ctrl+C</kbd></td><td>무조건 즉시 전체 정리 후 종료 (확인 없음 — 강제 종료 제스처)</td></tr>
+    </table></div>
+    <div class="callout"><p>로그 뷰 안에서 <kbd>q</kbd>는 종료가 아니라 <b>대시보드 복귀</b>입니다. 습관적으로 눌러도 서비스가 죽지 않아요.</p></div>
+
+    <h3>상태 읽는 법</h3>
+    <div class="tablewrap"><table>
+      <tr><th>표시</th><th>의미</th></tr>
+      <tr><td><span class="dot dim">○</span> <code>DOWN</code></td><td>꺼져 있음</td></tr>
+      <tr><td><span class="dot warn">■</span> <code>BUILDING 42s</code></td><td>jar 빌드 중 (경과 시간 표시. 최초 빌드는 수 분 걸릴 수 있음)</td></tr>
+      <tr><td><span class="dot warn">▲</span> <code>STARTING 7s</code></td><td>프로세스 떴고 헬스체크 대기 중 (30초 넘으면 <code>37s/120s</code>처럼 한도 표시)</td></tr>
+      <tr><td><span class="dot ok">●</span> <code>UP</code></td><td>헬스체크 통과, 정상 동작 중</td></tr>
+      <tr><td><span class="dot bad">×</span> <code>CRASHED</code></td><td>orca가 죽이지 않았는데 종료됨 — 종료 코드/시그널이 표시되고 자동 재시작하지 않음</td></tr>
+      <tr><td><span class="dot err">!</span> <code>ERROR</code></td><td>시작 실패 (포트 점유, 빌드 실패, 헬스 타임아웃 등 — 사유가 행에 표시)</td></tr>
+      <tr><td><span class="dot dim">◇</span> <code>SKIP(IDE)</code></td><td><kbd>x</kbd>로 제외한 서비스. 포트가 응답하지 않으면 <code>SKIP(!)</code>로 경고</td></tr>
+    </table></div>
+    <div class="callout"><p><b>빨간 상태가 보이면 <kbd>l</kbd>을 누르세요.</b> 모든 ERROR/CRASHED의 사유는 로그 파일 마지막 줄에 <code>[ORCA] &lt;시각&gt; ERROR: &lt;사유&gt;</code> 형태로 항상 남습니다.</p></div>
+
+    <h3>세션 재개</h3>
+    <p><kbd>q</kbd>로 종료하면 그 순간 어떤 서비스가 떠 있었는지 기억합니다. 다음에 <code>orca</code>를 실행하면:</p>
+    <pre><code> 지난 세션: 4개 실행 중이었음 — [u] 재개 / 실패했던 서비스: security (l로 사유 확인)</code></pre>
+    <p><kbd>u</kbd> 한 번으로 어제의 세팅이 그대로 돌아옵니다. <span class="dim">(CRASHED/ERROR로 끝났던 서비스는 자동 재개에서 빠지고 안내만 — 실패를 매일 아침 반복하지 않기 위해서예요.)</span></p>
+  </section>
+
+  <section id="headless">
+    <h2><span class="no">5</span>TUI 밖에서 쓰기 (자동화)</h2>
+    <p>모든 명령은 <b>성공 0 / 실패 1</b>의 exit code 계약을 지키므로 스크립트에서 바로 쓸 수 있습니다.</p>
+    <pre><code>orca status              <span class="c"># 상태 표 출력. 전부 UP이면 exit 0</span>
+orca status --json       <span class="c"># 같은 판정을 JSON으로</span>
+
+orca up                  <span class="c"># 지난 세션 재개 (이미 떠 있는 건 그대로 성공 — 멱등)</span>
+orca up tspay            <span class="c"># 그룹만</span>
+orca up --all            <span class="c"># 전체</span>
+
+orca down                <span class="c"># 종료 "대상 목록만" 출력 (dry-run)</span>
+orca down --yes          <span class="c"># 실제 종료</span>
+orca start eis-server    <span class="c"># 개별 시작</span>
+orca stop eis-server     <span class="c"># 개별 종료</span></code></pre>
+    <p>headless(<code>up</code>/<code>start</code>)로 띄운 서비스는 CLI가 끝나도 계속 돌고, <code>orca status</code>로 확인하고 <code>orca down --yes</code>로 정리합니다.</p>
+    <div class="callout"><p><b>소유 세션 보호</b> — 어떤 서비스를 어느 orca가 관리하는지 기록되기 때문에, 다른 터미널의 대시보드가 관리 중인 서비스를 <code>orca down</code>이 죽이지 못합니다("그 터미널에서 종료하세요"로 거부). 반대로 대시보드를 새로 열 때 다른 세션이 이미 돌고 있으면 안내만 하고 건드리지 않아요.</p></div>
+  </section>
+
+  <section id="hotreload">
+    <h2><span class="no">6</span>설정 핫로드</h2>
+    <p>대시보드가 떠 있는 동안 <code>services.yaml</code>이 저장되면 자동으로 반영됩니다 — 직접 편집이든, <b>다른 터미널에서 실행한 <code>orca add</code>/<code>remove</code>든</b> 마찬가지입니다.</p>
+    <div class="tablewrap"><table>
+      <tr><th>변경</th><th>반영</th></tr>
+      <tr><td>서비스 추가</td><td>DOWN 행으로 즉시 나타남</td></tr>
+      <tr><td>꺼져 있는 서비스 삭제</td><td>목록에서 즉시 사라짐</td></tr>
+      <tr><td><b>실행 중인</b> 서비스 삭제</td><td><code>(설정에서 삭제됨 — 중지 시 제거)</code> 표시로 계속 관리하다가, 중지하면 사라짐</td></tr>
+      <tr><td>설정 값 변경 (힙, 포트 등)</td><td>실행 중이면 <code>⟳ 설정 변경 — r로 반영</code> 표시만. <kbd>r</kbd>로 재시작하면 새 설정 적용</td></tr>
+      <tr><td>파일이 깨짐</td><td><b>기존 설정 유지</b> + <code>⚠ services.yaml 오류</code> 배너. 파일을 고치면 배너가 사라짐</td></tr>
+    </table></div>
+    <p class="dim">실행 중인 프로세스는 어떤 경우에도 orca가 마음대로 재시작하거나 죽이지 않습니다.</p>
+  </section>
+
+  <section id="trouble">
+    <h2><span class="no">7</span>문제 해결</h2>
+    <h3><span class="dot err">!</span> ERROR 포트 8081 점유 중: java.exe (PID 1234)</h3>
+    <p>그 포트를 누가 쓰고 있어요. IDE에서 직접 띄운 내 서비스라면 → orca에서 그 서비스를 <kbd>x</kbd>(SKIP)로 표시하는 게 정답입니다. 모르는 프로세스라면 PID로 확인 후 정리하세요.</p>
+    <h3><span class="dot err">!</span> ERROR 120초 내 ... 확인 실패 (마지막: 연결 거부)</h3>
+    <p>프로세스는 떴는데 헬스체크를 통과하지 못했어요. <kbd>l</kbd>로 앱 로그를 확인하세요 (DB 연결 실패 등 앱 자체 문제인 경우가 대부분). orca는 이때 프로세스를 정리해 좀비를 남기지 않습니다.</p>
+    <h3><span class="dot bad">×</span> CRASHED 프로세스 종료 (code 1)</h3>
+    <p>서비스가 스스로 죽었습니다. <kbd>l</kbd> → 마지막 로그에서 원인 확인. 자동 재시작은 일부러 하지 않아요(원인 파악을 방해하니까). 고친 뒤 <kbd>s</kbd>나 <kbd>r</kbd>로 다시 시작.</p>
+    <h3>빌드 실패</h3>
+    <p><code>! ERROR 빌드 실패: ...</code> → <kbd>l</kbd>을 누르면 Gradle 빌드 로그가 그대로 보입니다.</p>
+    <h3>"이전 세션이 남긴 프로세스가 있습니다"</h3>
+    <p>orca가 비정상 종료(터미널 강제 닫기 등)됐을 때 남은 프로세스입니다. 각 항목의 포트·응답 여부를 보고 <kbd>y</kbd>로 정리하면 됩니다.</p>
+    <h3>종료했는데 ⚠ 종료 미확인이 떴다면</h3>
+    <p>드물게 프로세스가 5초 안에 안 죽은 경우입니다. 다음 <code>orca</code> 실행 시 고아 정리 프롬프트가 잡아줍니다.</p>
+    <h3>알려진 한계</h3>
+    <ul>
+      <li class="dim">command 서비스의 MEM/CPU 표시는 cmd 래퍼 프로세스 기준이라 실제보다 작게 보일 수 있음 (spring은 정확)</li>
+      <li class="dim">command의 <code>cpus</code>(affinity)는 명시했을 때만, 현재는 래퍼 프로세스에 적용</li>
+      <li class="dim">headless로 띄운 서비스는 대시보드가 "이어받지" 못함 — 대시보드에서는 포트 점유로 보이므로, headless 것은 <code>orca down</code>으로 관리</li>
+    </ul>
+  </section>
+
+  <section id="files">
+    <h2><span class="no">8</span>파일 위치</h2>
+    <p>전부 <code>%USERPROFILE%\.orca\</code> 아래에 있습니다:</p>
+    <div class="tablewrap"><table>
+      <tr><th>파일</th><th>내용</th></tr>
+      <tr><td><code>services.yaml</code></td><td>서비스 등록 (직접 편집 가능, 핫로드됨)</td></tr>
+      <tr><td><code>logs\&lt;이름&gt;.log</code></td><td>서비스별 로그 (10MB 넘으면 <code>.1</code>로 롤링)</td></tr>
+      <tr><td><code>run.json</code></td><td>실행 중 프로세스 기록 (소유 세션 포함 — 직접 편집 비권장)</td></tr>
+      <tr><td><code>last-session.json</code></td><td>마지막 세션 스냅샷 (재개 기능용)</td></tr>
+      <tr><td><code>cache.json</code></td><td>spring jar 빌드 캐시</td></tr>
+    </table></div>
+  </section>
+
+  <section id="budget">
+    <h2><span class="no">9</span>자원 사용에 대해</h2>
+    <p>orca 자체는 <b>평균 CPU 1% 이하, RAM 150MB 이하</b> 예산으로 설계·실측됐습니다(수집 헬퍼 포함). 자원 수집은 3초에 한 번 전체를 일괄 샘플링하는 PowerShell 헬퍼 1개가 전담하고, <kbd>m</kbd>으로 끄면 그 헬퍼조차 종료됩니다. 직접 재측정하려면:</p>
+    <pre><code>pnpm build; node scripts/measure-budget.mjs</code></pre>
+  </section>
+
+  <div class="foot">
+    이 가이드는 저장소의 <code>docs/user-guide.md</code>와 같은 내용입니다 ·
+    <a href="https://github.com/jslimmain0/orca-runner">github.com/jslimmain0/orca-runner</a> (private)
+  </div>
+</main>
+</div>
+
+</body>
+</html>

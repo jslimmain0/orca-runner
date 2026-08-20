@@ -1,0 +1,86 @@
+# ============================================================
+# orca 서비스 등록 템플릿
+# ------------------------------------------------------------
+# 사용법:
+#   1) 이 파일을 %USERPROFILE%\.orca\services.yaml 로 복사
+#      copy docs\services.example.yaml %USERPROFILE%\.orca\services.yaml
+#   2) <포트> 자리를 실제 포트로 바꾸고, 안 쓰는 항목은 삭제
+#   3) orca 실행 (대시보드가 떠 있으면 저장 즉시 자동 반영됨)
+#
+# 규칙 요약:
+#   - kind: spring  → Gradle 프로젝트 전용. jar 캐시 빌드 후
+#                     힙 512MB·2코어·낮은 우선순위로 java -jar 실행
+#   - kind: command → 그 외 전부(Maven, 스크립트, 정적 서버 …).
+#                     등록한 명령을 낮은 우선순위로 실행
+#   - Maven 프로젝트는 spring이 아니라 command로 등록한다 (아래 예시)
+#   - group을 붙이면 `orca <그룹>`으로 묶어서 띄울 수 있다
+# ============================================================
+
+defaults:
+  spring:
+    heapMb: 512          # 스프링 서비스 공통 힙 상한 (서비스별로 덮어쓰기 가능)
+    cpus: 2              # JVM이 인식할 코어 수
+
+services:
+
+  # ---------- Gradle 멀티모듈 (EIS) ----------
+  eis-server:
+    group: tspay
+    kind: spring
+    dir: C:\Users\jslim\orca\EIS
+    module: eis-server                 # settings.gradle의 모듈명
+    port: <포트>
+    health: http://localhost:<포트>/actuator/health   # actuator 없으면 이 줄 삭제(포트로 판정)
+    jvmArgs:
+      - -Dspring.profiles.active=local
+
+  bank-apr-server:
+    group: tspay
+    kind: spring
+    dir: C:\Users\jslim\orca\EIS
+    module: bank-apr-server
+    port: <포트>
+    health: http://localhost:<포트>/actuator/health
+
+  # ---------- Gradle 단일 모듈 (security-chain) ----------
+  security-chain:
+    group: security
+    kind: spring
+    dir: C:\Users\jslim\orca\security-chain
+    port: <포트>                        # 단일 모듈이라 module 생략
+
+  # ---------- Maven 프로젝트 → command로 등록 ----------
+  # spring 프리셋은 Gradle 전용이라 Maven은 command로 띄운다.
+  # 방법 A) 미리 패키징해두고 jar 직접 실행 (권장 — 가장 가볍다):
+  #   mvnw.cmd -q -DskipTests package  를 한 번 돌려두고 target의 jar를 지정
+  t-spay:
+    group: tspay
+    kind: command
+    dir: C:\Users\jslim\orca\T-SPAY
+    run: java -Xmx512m -XX:ActiveProcessorCount=2 -jar target\<빌드된-jar-이름>.jar
+    port: <포트>
+    health: http://localhost:<포트>/actuator/health
+
+  # 방법 B) 매번 mvnw로 실행 (편하지만 매 시작마다 Maven이 돈다):
+  batch-flow:
+    group: tspay
+    kind: command
+    dir: C:\Users\jslim\orca\BATCH_FLOW
+    run: mvnw.cmd -q spring-boot:run -Dspring-boot.run.jvmArguments="-Xmx512m -XX:ActiveProcessorCount=2"
+    port: <포트>
+
+  security-core:
+    group: security
+    kind: command
+    dir: C:\Users\jslim\orca\SECURITY_CORE
+    run: java -Xmx512m -XX:ActiveProcessorCount=2 -jar target\<빌드된-jar-이름>.jar
+    port: <포트>
+
+  # ---------- 프론트/기타 (DEMO-LAST 등) ----------
+  # 직접 개발 중인 프론트는 IDE/터미널에서 pnpm dev로 띄우고 orca에선 x(SKIP) 처리.
+  # "떠 있기만 하면 되는" 프론트는 빌드 산출물을 정적 서빙하는 게 가볍다:
+  # demo-frontend:
+  #   kind: command
+  #   dir: C:\Users\jslim\orca\DEMO-LAST\frontend
+  #   run: npx serve -l <포트> dist
+  #   port: <포트>
