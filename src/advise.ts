@@ -1,5 +1,5 @@
 import { parseDocument } from 'yaml'
-import { loadConfig, loadConfigFromString, ConfigError } from './config.js'
+import { loadConfig, loadConfigFromString } from './config.js'
 import { readUsage, jstatSnapshot } from './usage.js'
 import { readRunEntries, isAlive } from './procctl.js'
 import type { Config, ServiceDef } from './types.js'
@@ -113,17 +113,16 @@ export function applyRecommendation(src: string, name: string, rec: Recommendati
   return out
 }
 
-/** `orca advise` — 정보 제공 명령이라 항상 exit 0(호출부에서 exitCode를 건드리지 않음). */
+/**
+ * `orca advise` — "항상 exit 0"은 "정상 로드했는데 추천할 게 없다"는 상태에만 적용된다.
+ * 설정 파손/부재(ConfigError)는 status/groups와 동일하게 그대로 전파해 cli.ts가 friendly
+ * 메시지 + exitCode 1로 처리하고, 빈 서비스 목록도 groups와 동일하게 exitCode 1을 낸다.
+ */
 export async function runAdvise(): Promise<void> {
-  let cfg: Config
-  try {
-    cfg = loadConfig()
-  } catch (e) {
-    if (e instanceof ConfigError) { console.error(e.message); return }
-    throw e
-  }
+  const cfg = loadConfig()   // ConfigError는 삼키지 않고 그대로 전파 (status 패턴)
   if (cfg.services.length === 0) {
     console.error('등록된 서비스가 없습니다 — \'orca add\'로 등록하세요.')
+    process.exitCode = 1
     return
   }
   const usage = readUsage()
