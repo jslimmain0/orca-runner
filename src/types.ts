@@ -11,6 +11,7 @@ export interface ServiceDef {
   port: number
   health?: string        // 헬스체크 URL (없으면 포트 리슨으로 판정)
   heapMb: number
+  metaspaceMb: number
   cpus: number
   priority: Priority
   jvmArgs: string[]

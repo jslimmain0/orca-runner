@@ -11,7 +11,7 @@ export const CONFIG_PATH = join(ORCA_HOME, 'services.yaml')
 
 export const RESERVED_WORDS = ['add', 'setup', 'status', 'up', 'down', 'start', 'stop', 'remove', 'groups', 'help'] as const
 
-const BUILTIN = { heapMb: 512, cpus: 2, priority: 'belowNormal' as Priority }
+const BUILTIN = { heapMb: 512, cpus: 2, priority: 'belowNormal' as Priority, metaspaceMb: 256 }
 const KINDS: Kind[] = ['spring', 'command']
 const PRIORITIES: Priority[] = ['normal', 'belowNormal', 'idle']
 
@@ -46,6 +46,7 @@ export function loadConfigFromString(src: string, path = '(inline)'): Config {
   // Validate defaults.spring before merging
   const dAt = ['defaults', 'spring']
   if (d.heapMb !== undefined && !posInt(d.heapMb)) fail(dAt, 'defaults.spring.heapMb는 0 이상의 정수여야 합니다')
+  if (d.metaspaceMb !== undefined && !posInt(d.metaspaceMb)) fail(dAt, 'defaults.spring.metaspaceMb는 0 이상의 정수여야 합니다')
   if (d.cpus !== undefined && !posInt(d.cpus)) fail(dAt, 'defaults.spring.cpus는 0 이상의 정수여야 합니다')
   if (d.priority !== undefined && !PRIORITIES.includes(d.priority as Priority)) fail(dAt, 'defaults.spring.priority는 normal|belowNormal|idle 중 하나여야 합니다')
 
@@ -71,6 +72,7 @@ export function loadConfigFromString(src: string, path = '(inline)'): Config {
       fail(at, `${name}: priority는 normal|belowNormal|idle 중 하나여야 합니다`)
     }
     if (s.heapMb !== undefined && !posInt(s.heapMb)) fail(at, `${name}: heapMb는 0 이상의 정수여야 합니다`)
+    if (s.metaspaceMb !== undefined && !posInt(s.metaspaceMb)) fail(at, `${name}: metaspaceMb는 0 이상의 정수여야 합니다`)
     if (s.cpus !== undefined && !posInt(s.cpus)) fail(at, `${name}: cpus는 0 이상의 정수여야 합니다`)
     if (s.jvmArgs !== undefined && (!Array.isArray(s.jvmArgs) || s.jvmArgs.some(a => typeof a !== 'string'))) {
       fail(at, `${name}: jvmArgs는 문자열 배열이어야 합니다 (예: jvmArgs: ["-Dspring.profiles.active=local"])`)
@@ -89,7 +91,7 @@ export function loadConfigFromString(src: string, path = '(inline)'): Config {
       }
     }
     // command 서비스는 cpus 기본값이 0 — affinity는 명시적으로 설정한 경우에만 적용 (opt-in)
-    const base = s.kind === 'spring' ? springDefaults : { heapMb: 0, cpus: 0, priority: BUILTIN.priority }
+    const base = s.kind === 'spring' ? springDefaults : { heapMb: 0, cpus: 0, priority: BUILTIN.priority, metaspaceMb: 0 }
     services.push({
       name,
       group: s.group as string | undefined,
@@ -100,6 +102,7 @@ export function loadConfigFromString(src: string, path = '(inline)'): Config {
       port: port as number,
       health: s.health as string | undefined,
       heapMb: (s.heapMb as number | undefined) ?? base.heapMb,
+      metaspaceMb: (s.metaspaceMb as number | undefined) ?? base.metaspaceMb,
       cpus: (s.cpus as number | undefined) ?? base.cpus,
       priority: (s.priority as Priority | undefined) ?? base.priority,
       jvmArgs: (s.jvmArgs as string[] | undefined) ?? [],

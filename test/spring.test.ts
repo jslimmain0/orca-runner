@@ -8,13 +8,13 @@ import type { ServiceDef } from '../src/types.js'
 
 const def: ServiceDef = {
   name: 'eis', kind: 'spring', dir: 'C:\\work\\eis', port: 8081,
-  heapMb: 512, cpus: 2, priority: 'belowNormal', jvmArgs: ['-Dspring.profiles.active=local'], env: {},
+  heapMb: 512, cpus: 2, priority: 'belowNormal', metaspaceMb: 256, jvmArgs: ['-Dspring.profiles.active=local'], env: {},
 }
 
 describe('spring', () => {
   it('javaArgs가 자원 제한 플래그를 만든다', () => {
     expect(javaArgs(def, 'C:\\x\\app.jar')).toEqual([
-      '-Xmx512m', '-XX:MaxMetaspaceSize=256m', '-XX:ActiveProcessorCount=2',
+      '-Xmx512m', `-XX:MaxMetaspaceSize=${def.metaspaceMb}m`, '-XX:ActiveProcessorCount=2',
       '-XX:+UseSerialGC', '-Dspring.profiles.active=local', '-jar', 'C:\\x\\app.jar',
     ])
   })
@@ -46,7 +46,7 @@ describe('spring', () => {
     mkdirSync(join(dir, 'build', 'libs'), { recursive: true })
     writeFileSync(join(dir, 'build', 'libs', 'fake-1.0.jar'), 'jar')
     writeFileSync(join(dir, 'gradlew.bat'), '@echo off\r\nexit /b 0\r\n')
-    const testDef: ServiceDef = { name: 'sp', kind: 'spring', dir, port: 1, heapMb: 512, cpus: 2, priority: 'belowNormal', jvmArgs: [], env: {} }
+    const testDef: ServiceDef = { name: 'sp', kind: 'spring', dir, port: 1, heapMb: 512, cpus: 2, priority: 'belowNormal', metaspaceMb: 256, jvmArgs: [], env: {} }
     const jar = await buildJar(testDef, new PassThrough())
     expect(jar.endsWith('fake-1.0.jar')).toBe(true)
   }, 15000)

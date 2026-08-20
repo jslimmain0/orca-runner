@@ -109,4 +109,13 @@ describe('config', () => {
     const badKey = `services:\n  a:\n    kind: command\n    dir: C:\\x\n    run: r\n    port: 1\n    env:\n      "1BAD": v\n`
     expect(() => loadConfigFromString(badKey)).toThrowError(/env 키/)
   })
+
+  it('metaspaceMb: spring 기본 256, 서비스/defaults 오버라이드, 타입 검증', () => {
+    const src = `defaults:\n  spring:\n    metaspaceMb: 192\nservices:\n  a:\n    kind: spring\n    dir: C:\\x\n    port: 1\n  b:\n    kind: spring\n    dir: C:\\y\n    port: 2\n    metaspaceMb: 384\n`
+    const cfg = loadConfigFromString(src)
+    expect(cfg.services[0].metaspaceMb).toBe(192)
+    expect(cfg.services[1].metaspaceMb).toBe(384)
+    const bad = `services:\n  a:\n    kind: spring\n    dir: C:\\x\n    port: 1\n    metaspaceMb: big\n`
+    expect(() => loadConfigFromString(bad)).toThrowError(/metaspaceMb/)
+  })
 })

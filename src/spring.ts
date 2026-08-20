@@ -7,7 +7,7 @@ import type { ServiceDef } from './types.js'
 export function javaArgs(def: ServiceDef, jar: string): string[] {
   return [
     `-Xmx${def.heapMb}m`,
-    '-XX:MaxMetaspaceSize=256m',
+    `-XX:MaxMetaspaceSize=${def.metaspaceMb}m`,
     `-XX:ActiveProcessorCount=${def.cpus}`,
     '-XX:+UseSerialGC',
     ...def.jvmArgs,

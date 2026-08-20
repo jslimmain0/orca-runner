@@ -16,7 +16,7 @@ beforeAll(async () => {
 })
 afterAll(() => { child.kill() })
 
-const base = { kind: 'command' as const, dir: process.cwd(), run: 'x', heapMb: 0, cpus: 0, priority: 'normal' as const, jvmArgs: [], env: {} }
+const base = { kind: 'command' as const, dir: process.cwd(), run: 'x', heapMb: 0, metaspaceMb: 0, cpus: 0, priority: 'normal' as const, jvmArgs: [], env: {} }
 const cfg: Config = { services: [
   { ...base, name: 'live', port: PORT, health: `http://localhost:${PORT}/health` },
   { ...base, name: 'gone', port: 45852 },
