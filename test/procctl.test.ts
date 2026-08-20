@@ -101,6 +101,26 @@ describe('procctl', () => {
     expect(isAlive(pid)).toBe(false)
   }, 15000)
 
+  it('spawnService: 케이스만 다른 env 키도 서비스 값이 이긴다', async () => {
+    const out = new PassThrough()
+    let buf = ''
+    out.on('data', d => { buf += String(d) })
+    process.env.ORCA_CASE_TEST = 'inherited'   // 상속 쪽 케이스 — spawn 전에 먼저 세팅
+    try {
+      const { pid } = await spawnService({
+        command: process.execPath,
+        args: ['-e', "process.stdout.write(String(process.env.ORCA_CASE_TEST))"],
+        cwd: process.cwd(), priority: 'normal', out,
+        env: { orca_case_test: 'wins' },        // 소문자로 지정 — 케이스만 다름
+      })
+      await new Promise(r => setTimeout(r, 1500))
+      expect(buf).toBe('wins')
+      expect(isAlive(pid)).toBe(false)
+    } finally {
+      delete process.env.ORCA_CASE_TEST         // 다른 테스트 오염 방지
+    }
+  }, 15000)
+
   it('findOrphans: owner가 죽었고 pid가 살아있으면 고아, owner=0(headless)은 제외', () => {
     const file = join(mkdtempSync(join(tmpdir(), 'orca-run-')), 'run.json')
     writeFileSync(file, JSON.stringify({

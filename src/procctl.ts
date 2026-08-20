@@ -30,7 +30,17 @@ export async function spawnService(o: {
   // non-detached 자식은 콘솔 프로세스 그룹을 부모와 공유해 사용자가 멈춘 CLI를 Ctrl+C로 죽이면
   // "남겨뒀어야 할" 서비스까지 함께 죽는다. 그래서 로그를 파이프가 아닌 파일 fd로 직접 리다이렉트
   // (부모 쪽 스트림/핸들 없음)하고, 새 콘솔 프로세스 그룹으로 detached 시킨 뒤 unref()한다.
-  const childEnv = o.env && Object.keys(o.env).length > 0 ? { ...process.env, ...o.env } : undefined
+  let childEnv: NodeJS.ProcessEnv | undefined
+  if (o.env && Object.keys(o.env).length > 0) {
+    childEnv = { ...process.env }
+    for (const [k, v] of Object.entries(o.env)) {
+      // Windows env 키는 대소문자 무시 — 케이스만 다른 상속 키를 지워 서비스 값이 확실히 이기게 한다
+      for (const ek of Object.keys(childEnv)) {
+        if (ek !== k && ek.toLowerCase() === k.toLowerCase()) delete childEnv[ek]
+      }
+      childEnv[k] = v
+    }
+  }
   let fd: number | undefined
   let child: ChildProcess
   if (o.detach) {
