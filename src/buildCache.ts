@@ -44,3 +44,12 @@ export function saveCache(c: Record<string, BuildRecord>, path = CACHE_PATH): vo
   mkdirSync(dirname(path), { recursive: true })
   writeFileSync(path, JSON.stringify(c, null, 2))
 }
+
+/** 서비스의 빌드 캐시 기록을 지운다 — 다음 시작 때 gradlew bootJar를 강제로 다시 돈다. 기록이 있었으면 true */
+export function clearBuildCache(name: string, path = CACHE_PATH): boolean {
+  const c = loadCache(path)
+  if (!(name in c)) return false
+  delete c[name]
+  saveCache(c, path)
+  return true
+}

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { latestSourceMtime, needsRebuild, loadCache, saveCache } from '../src/buildCache.js'
+import { latestSourceMtime, needsRebuild, loadCache, saveCache, clearBuildCache } from '../src/buildCache.js'
 
 function makeProject(): string {
   const dir = mkdtempSync(join(tmpdir(), 'orca-bc-'))
@@ -44,5 +44,13 @@ describe('buildCache', () => {
     saveCache({ eis: { builtAt: 123, jar: 'a.jar' } }, file)
     expect(loadCache(file)).toEqual({ eis: { builtAt: 123, jar: 'a.jar' } })
     expect(loadCache(join(tmpdir(), 'no-such-orca-cache.json'))).toEqual({})
+  })
+
+  it('clearBuildCache는 해당 서비스 기록만 지운다', () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'orca-bc-')), 'cache.json')
+    saveCache({ a: { builtAt: 1, jar: 'a.jar' }, b: { builtAt: 2, jar: 'b.jar' } }, file)
+    expect(clearBuildCache('a', file)).toBe(true)
+    expect(loadCache(file)).toEqual({ b: { builtAt: 2, jar: 'b.jar' } })
+    expect(clearBuildCache('a', file)).toBe(false)
   })
 })

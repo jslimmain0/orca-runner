@@ -4,7 +4,7 @@
 # 사용법:
 #   1) 이 파일을 %USERPROFILE%\.orca\services.yaml 로 복사
 #      copy docs\services.example.yaml %USERPROFILE%\.orca\services.yaml
-#   2) <포트> 자리를 실제 포트로 바꾸고, 안 쓰는 항목은 삭제
+#   2) 예시 포트/경로를 실제 값으로 바꾸고, 안 쓰는 항목은 삭제
 #   3) orca 실행 (대시보드가 떠 있으면 저장 즉시 자동 반영됨)
 #
 # 규칙 요약:
@@ -30,8 +30,8 @@ services:
     kind: spring
     dir: C:\Users\jslim\orca\EIS
     module: eis-server                 # settings.gradle의 모듈명
-    port: <포트>
-    health: http://localhost:<포트>/actuator/health   # actuator 없으면 이 줄 삭제(포트로 판정)
+    port: 8081
+    health: http://localhost:8081/actuator/health   # actuator 없으면 이 줄 삭제(포트로 판정)
     jvmArgs:
       - -Dspring.profiles.active=local
     env:
@@ -43,15 +43,15 @@ services:
     kind: spring
     dir: C:\Users\jslim\orca\EIS
     module: bank-apr-server
-    port: <포트>
-    health: http://localhost:<포트>/actuator/health
+    port: 8082
+    health: http://localhost:8082/actuator/health
 
   # ---------- Gradle 단일 모듈 (security-chain) ----------
   security-chain:
     group: security
     kind: spring
     dir: C:\Users\jslim\orca\security-chain
-    port: <포트>                        # 단일 모듈이라 module 생략
+    port: 8083                        # 단일 모듈이라 module 생략
 
   # ---------- Maven 프로젝트 → command로 등록 ----------
   # spring 프리셋은 Gradle 전용이라 Maven은 command로 띄운다.
@@ -61,9 +61,9 @@ services:
     group: tspay
     kind: command
     dir: C:\Users\jslim\orca\T-SPAY
-    run: java -Xmx512m -XX:ActiveProcessorCount=2 -jar target\<빌드된-jar-이름>.jar
-    port: <포트>
-    health: http://localhost:<포트>/actuator/health
+    run: java -Xmx512m -XX:ActiveProcessorCount=2 -jar target\t-spay-0.0.1-SNAPSHOT.jar
+    port: 8084
+    health: http://localhost:8084/actuator/health
 
   # 방법 B) 매번 mvnw로 실행 (편하지만 매 시작마다 Maven이 돈다):
   batch-flow:
@@ -71,14 +71,14 @@ services:
     kind: command
     dir: C:\Users\jslim\orca\BATCH_FLOW
     run: mvnw.cmd -q spring-boot:run -Dspring-boot.run.jvmArguments="-Xmx512m -XX:ActiveProcessorCount=2"
-    port: <포트>
+    port: 8085
 
   security-core:
     group: security
     kind: command
     dir: C:\Users\jslim\orca\SECURITY_CORE
-    run: java -Xmx512m -XX:ActiveProcessorCount=2 -jar target\<빌드된-jar-이름>.jar
-    port: <포트>
+    run: java -Xmx512m -XX:ActiveProcessorCount=2 -jar target\security-core-0.0.1-SNAPSHOT.jar
+    port: 8086
 
   # ---------- 프론트/기타 (DEMO-LAST 등) ----------
   # 직접 개발 중인 프론트는 IDE/터미널에서 pnpm dev로 띄우고 orca에선 x(SKIP) 처리.
@@ -86,5 +86,5 @@ services:
   # demo-frontend:
   #   kind: command
   #   dir: C:\Users\jslim\orca\DEMO-LAST\frontend
-  #   run: npx serve -l <포트> dist
-  #   port: <포트>
+  #   run: npx serve -l 8086 dist
+  #   port: 8086
