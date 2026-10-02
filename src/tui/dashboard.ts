@@ -71,7 +71,7 @@ export function dashboardLines(states: ServiceState[], sys: SysSample, opts: Das
     const plain = truncateRow(`${cur}${num} ${icon} ${name} :${port} ${status}${mem}${cpu}${note}`, width)
     return colorizeRow(plain, s.status, color)
   })
-  const help = opts.helpOverride ?? ' [↑↓/1-9]선택 [s/Enter]시작/중지 [r]재시작 [a]전체 [x]제외 [l]로그 [m]수집 [v]권장적용 [c]빌드캐시삭제 [q]종료'
+  const help = opts.helpOverride ?? ' [↑↓/1-9]선택 [s/Enter]시작/중지 [r]재시작 [a]전체 [x]제외 [l]로그 [m]수집 [v]권장적용 [g]Gradle끄기 [q]종료'
   const out = [head, sep, ...rows, sep, help]
   const extras = [opts.banner, opts.notice].filter((x): x is string => !!x)
   if (extras.length > 0) out.splice(1, 0, ...extras)

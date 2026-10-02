@@ -13,7 +13,7 @@ import { portListening } from './health.js'
 import { readLastSession, writeLastSession, resumeSet, failedSet } from './session.js'
 import { watchConfig } from './configWatcher.js'
 import { loadConfigFromString, CONFIG_PATH } from './config.js'
-import { clearBuildCache } from './buildCache.js'
+import { gradleStop } from './spring.js'
 import { readUsage, mergeSession, writeUsage, jstatSnapshot } from './usage.js'
 import { recommend, applyRecommendation } from './advise.js'
 import type { Config, ServiceDef, ServiceStatus } from './types.js'
@@ -290,16 +290,15 @@ export async function runApp(cfg: Config, opts?: { group?: string }): Promise<vo
         if (s3.status !== 'UP' && s3.status !== 'STARTING' && s3.status !== 'BUILDING') sup.setSkip(s3.def.name, !s3.skipped)
         break
       }
-      case 'c': {
-        const s5 = sup.states()[sel]
-        if (s5.def.kind !== 'spring') { notice = ` ${s5.def.name}: spring 서비스만 빌드 캐시가 있습니다`; noticeExpiry = Date.now() + 4000 }
-        else if (s5.status === 'BUILDING') { notice = ` ⚠ 빌드 중에는 캐시를 지울 수 없습니다`; noticeExpiry = Date.now() + 4000 }
-        else {
-          notice = clearBuildCache(s5.def.name)
-            ? ` ${s5.def.name} 빌드 캐시 삭제 — 다음 시작 때 Gradle 재빌드`
-            : ` ${s5.def.name}: 지울 빌드 캐시가 없습니다`
-          noticeExpiry = Date.now() + 5000
-        }
+      case 'g': {
+        if (sup.states().some(x => x.status === 'BUILDING')) { notice = ` ⚠ 빌드 중에는 Gradle 데몬을 끌 수 없습니다`; noticeExpiry = Date.now() + 4000; break }
+        const dirs = [...new Set(sup.states().filter(x => x.def.kind === 'spring').map(x => x.def.dir))]
+        if (dirs.length === 0) { notice = ` Gradle을 쓰는 서비스가 없습니다`; noticeExpiry = Date.now() + 4000; break }
+        notice = ` Gradle 데몬 종료 중...`; noticeExpiry = Infinity
+        void Promise.all(dirs.map(d => gradleStop(d))).then(() => {
+          notice = ` ✔ Gradle 데몬 종료 완료 (${dirs.length}개 프로젝트)`; noticeExpiry = Date.now() + 5000
+          draw()
+        })
         break
       }
       case 'l': view = 'log'; logOffset = 0; screen.reset(); break
