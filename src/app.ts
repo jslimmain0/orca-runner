@@ -13,7 +13,7 @@ import { portListening } from './health.js'
 import { readLastSession, writeLastSession, resumeSet, failedSet } from './session.js'
 import { watchConfig } from './configWatcher.js'
 import { loadConfigFromString, CONFIG_PATH } from './config.js'
-import { gradleStop } from './spring.js'
+import { killGradleDaemons } from './spring.js'
 import { readUsage, mergeSession, writeUsage, jstatSnapshot } from './usage.js'
 import { recommend, applyRecommendation } from './advise.js'
 import type { Config, ServiceDef, ServiceStatus } from './types.js'
@@ -292,11 +292,10 @@ export async function runApp(cfg: Config, opts?: { group?: string }): Promise<vo
       }
       case 'g': {
         if (sup.states().some(x => x.status === 'BUILDING')) { notice = ` ⚠ 빌드 중에는 Gradle 데몬을 끌 수 없습니다`; noticeExpiry = Date.now() + 4000; break }
-        const dirs = [...new Set(sup.states().filter(x => x.def.kind === 'spring').map(x => x.def.dir))]
-        if (dirs.length === 0) { notice = ` Gradle을 쓰는 서비스가 없습니다`; noticeExpiry = Date.now() + 4000; break }
-        notice = ` Gradle 데몬 종료 중...`; noticeExpiry = Infinity
-        void Promise.all(dirs.map(d => gradleStop(d))).then(() => {
-          notice = ` ✔ Gradle 데몬 종료 완료 (${dirs.length}개 프로젝트)`; noticeExpiry = Date.now() + 5000
+        notice = ` Gradle 데몬 찾는 중...`; noticeExpiry = Infinity
+        void killGradleDaemons().then(n => {
+          notice = n > 0 ? ` ✔ Gradle 데몬 ${n}개 kill` : ` 실행 중인 Gradle 데몬이 없습니다`
+          noticeExpiry = Date.now() + 5000
           draw()
         })
         break

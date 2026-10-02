@@ -1,8 +1,12 @@
-import { spawn, type ChildProcess } from 'node:child_process'
+import { spawn, execFile, type ChildProcess } from 'node:child_process'
+import { promisify } from 'node:util'
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Writable } from 'node:stream'
 import type { ServiceDef } from './types.js'
+import { killTree } from './procctl.js'
+
+const run = promisify(execFile)
 
 export function javaArgs(def: ServiceDef, jar: string): string[] {
   return [
@@ -45,4 +49,30 @@ export async function buildJar(def: ServiceDef, out: Writable, onSpawn?: (child:
 
 export async function gradleStop(dir: string): Promise<void> {
   try { await runGradle(dir, ['--stop']) } catch { /* 데몬 없음 등은 무시 */ }
+}
+
+/** PowerShell ConvertTo-Json 출력(객체 1개면 객체, 여러 개면 배열, 없으면 빈 문자열)에서 pid 목록을 뽑는다 */
+export function parseDaemonPids(json: string): number[] {
+  const t = json.trim()
+  if (!t) return []
+  try {
+    const v = JSON.parse(t) as { ProcessId?: number } | { ProcessId?: number }[]
+    return (Array.isArray(v) ? v : [v]).map(x => x.ProcessId).filter((n): n is number => typeof n === 'number')
+  } catch { return [] }
+}
+
+/** 이 PC의 모든 Gradle 데몬(IDE·다른 터미널이 띄운 것 포함)을 명령줄로 찾아 PID 반환 */
+export async function findGradleDaemons(): Promise<number[]> {
+  const ps = "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*org.gradle.launcher.daemon.bootstrap.GradleDaemon*' } | Select-Object ProcessId | ConvertTo-Json -Compress"
+  try {
+    const { stdout } = await run('powershell', ['-NoProfile', '-Command', ps], { windowsHide: true })
+    return parseDaemonPids(stdout)
+  } catch { return [] }
+}
+
+/** 찾은 Gradle 데몬을 전부 kill. 종료한 개수 반환 */
+export async function killGradleDaemons(): Promise<number> {
+  const pids = await findGradleDaemons()
+  const r = await Promise.all(pids.map(pid => killTree(pid)))
+  return r.filter(Boolean).length
 }

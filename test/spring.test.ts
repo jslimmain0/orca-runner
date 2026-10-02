@@ -51,3 +51,13 @@ describe('spring', () => {
     expect(jar.endsWith('fake-1.0.jar')).toBe(true)
   }, 15000)
 })
+
+describe('parseDaemonPids', () => {
+  it('객체 1개 / 배열 / 빈 출력 / 깨진 출력', async () => {
+    const { parseDaemonPids } = await import('../src/spring.js')
+    expect(parseDaemonPids('{"ProcessId":11}')).toEqual([11])
+    expect(parseDaemonPids('[{"ProcessId":1},{"ProcessId":2}]')).toEqual([1, 2])
+    expect(parseDaemonPids('')).toEqual([])
+    expect(parseDaemonPids('oops')).toEqual([])
+  })
+})
